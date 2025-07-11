@@ -7,7 +7,7 @@ export default function ShopPage() {
       minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #f8fafc 0%, #a7bfe8 100%)'
     }}>
       <div style={{
-        background: 'rgba(255,255,255,0.95)',
+        background: 'rgba(255,254,255,0.95)',
         borderRadius: 20,
         boxShadow: '0 8px 32px rgba(80,100,180,0.12)',
         padding: '2.5em 2em',
