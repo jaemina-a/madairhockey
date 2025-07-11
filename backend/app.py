@@ -8,7 +8,7 @@ import mysql.connector
 # ─────────── DB 설정 ───────────
 DB_CONF = dict(
     user     = os.getenv("DB_USER", "root"),
-    password = os.getenv("DB_PASSWORD", "Party0781!"),
+    password = os.getenv("DB_PASSWORD", "1024"),
     host     = os.getenv("DB_HOST", "127.0.0.1"),
     database = os.getenv("DB_NAME", "airhockey"),
     use_pure=True
@@ -22,48 +22,51 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")   # e
 
 # ─────────── 게임 로직 ───────────
 class Game:
-    W, H = 800, 400
-    PW, PH, BR = 10, 80, 10     # 패들 폭/높이, 공 반지름
-    SPD, TICK = 5, 1/60         # 픽셀/frame, 60 fps
+    W, H = 400, 700
+    PW, PH, BR = 80, 10, 12     # 패들 폭/높이, 공 반지름
+    SPD, TICK = 7, 1/60         # 픽셀/frame, 60 fps
 
     def __init__(self, room):
         self.room = room
         self.reset_ball(random.choice([-1, 1]))
-        mid = self.H//2 - self.PH//2
-        self.paddle = {"left": mid, "right": mid}
-        self.score  = {"left": 0, "right": 0}
+        mid = self.W//2 - self.PW//2
+        self.paddle = {"top": mid, "bottom": mid}
+        self.score  = {"top": 0, "bottom": 0}
 
     # ───────── 상태 업데이트 ─────────
     def step(self):
         self.bx += self.vx
         self.by += self.vy
 
-        if self.by - self.BR <= 0 or self.by + self.BR >= self.H:
-            self.vy *= -1
+        # 좌우 벽 튕김
+        if self.bx - self.BR <= 0 or self.bx + self.BR >= self.W:
+            self.vx *= -1
 
-        # 왼쪽 패들
-        if self.bx - self.BR <= self.PW and self.paddle["left"] <= self.by <= self.paddle["left"]+self.PH:
-            self.vx, self.bx = abs(self.vx), self.PW + self.BR
-        # 오른쪽 패들
-        if self.bx + self.BR >= self.W-self.PW and self.paddle["right"] <= self.by <= self.paddle["right"]+self.PH:
-            self.vx, self.bx = -abs(self.vx), self.W-self.PW-self.BR
+        # 위쪽 패들 충돌
+        if self.by - self.BR <= self.PH and self.paddle["top"] <= self.bx <= self.paddle["top"]+self.PW:
+            self.vy, self.by = abs(self.vy), self.PH + self.BR
+        # 아래쪽 패들 충돌
+        if self.by + self.BR >= self.H-self.PH and self.paddle["bottom"] <= self.bx <= self.paddle["bottom"]+self.PW:
+            self.vy, self.by = -abs(self.vy), self.H-self.PH-self.BR
 
         # 골 체크
-        if self.bx < 0:
-            self.score["right"] += 1
+        if self.by < 0:
+            self.score["bottom"] += 1
             self.reset_ball(1)
-        elif self.bx > self.W:
-            self.score["left"] += 1
+        elif self.by > self.H:
+            self.score["top"] += 1
             self.reset_ball(-1)
 
     def reset_ball(self, direction):
         self.bx, self.by = self.W//2, self.H//2
-        self.vx = direction*self.SPD
-        self.vy = random.choice([-self.SPD, self.SPD])
+        self.vy = direction*self.SPD
+        self.vx = random.choice([-self.SPD, self.SPD])
 
-    def move_paddle(self, side, dy):
-        y = max(0, min(self.H-self.PH, self.paddle[side]+dy))
-        self.paddle[side] = y
+    def move_paddle(self, side, dx):
+        if side == "left": side = "top"
+        if side == "right": side = "bottom"
+        x = max(0, min(self.W-self.PW, self.paddle[side]+dx))
+        self.paddle[side] = x
 
     def out(self):
         return {
@@ -105,7 +108,7 @@ def join(data):
 def paddle_move(data):
     g = games.get(data["room"])
     if g:
-        g.move_paddle(data["side"], data["dy"])
+        g.move_paddle(data["side"], data["dx"])
 
 @socketio.on("disconnect")
 def disconnect():
