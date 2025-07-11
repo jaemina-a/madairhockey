@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 
-const W = 800, H = 403, PW = 10, PH = 80, BR = 10;
+const W = 800, H = 405, PW = 10, PH = 80, BR = 10;
 
 export default function GameBoard() {
   const [state, setState] = useState(null);
