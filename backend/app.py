@@ -148,12 +148,8 @@ def save_match(g: Game):
 
 # ───────── 실행 ─────────
 if __name__ == "__main__":
-    print("sever run!\n")
+    print("sever run!!\n")
     init_db()
     with bg_lock:
         socketio.start_background_task(loop)
-<<<<<<< HEAD
     socketio.run(app, host="0.0.0.0", port=8000)   # Mac·Win 공통
-=======
-    socketio.run(app, host="0.0.0.0", port=8000)   # Mac·Win 공통
->>>>>>> 89bd43df6dfba6856db0fe2dc22346b4b3bf4e4b
