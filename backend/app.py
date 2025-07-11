@@ -8,17 +8,17 @@ import mysql.connector
 # ─────────── DB 설정 ───────────
 DB_CONF = dict(
     user     = os.getenv("DB_USER", "root"),
-    password = os.getenv("DB_PASSWORD", "1024"),
+    password = os.getenv("DB_PASSWORD", "Party0781!"),
     host     = os.getenv("DB_HOST", "127.0.0.1"),
     database = os.getenv("DB_NAME", "airhockey"),
-    auth_plugin = "mysql_native_password",
+    use_pure=True
 )
 pool = mysql.connector.pooling.MySQLConnectionPool(pool_name="ah_pool", pool_size=5, **DB_CONF)
 
 # ─────────── Flask + Socket.IO ───────────
 app = Flask(__name__, static_folder="../frontend/dist", static_url_path="/")
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "secret!")
-socketio = SocketIO(app, cors_allowed_origins="*")   # eventlet 사용
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")   # eventlet 사용
 
 # ─────────── 게임 로직 ───────────
 class Game:
@@ -152,4 +152,4 @@ if __name__ == "__main__":
     init_db()
     with bg_lock:
         socketio.start_background_task(loop)
-    socketio.run(app, host="0.0.0.0", port=5001)   # Mac·Win 공통
+    socketio.run(app, host="0.0.0.0", port=8000)   # Mac·Win 공통
