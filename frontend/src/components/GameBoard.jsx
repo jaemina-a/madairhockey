@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 
 // 세로형 에어하키 보드 크기
-const W = 400, H = 700, PW = 80, PH = 10, BR = 12;
+const W = 403, H = 700, PW = 80, PH = 10, BR = 12;
 
 export default function GameBoard() {
   const [state, setState] = useState(null);

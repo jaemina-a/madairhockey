@@ -193,7 +193,7 @@ def login():
 
 # ─────────── 실행 ───────────
 if __name__ == "__main__":
-    print("server run!\n")
+    print("server run\n")
     init_db()
     with bg_lock:
         socketio.start_background_task(loop)
