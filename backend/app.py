@@ -152,4 +152,4 @@ if __name__ == "__main__":
     init_db()
     with bg_lock:
         socketio.start_background_task(loop)
-    socketio.run(app, host="0.0.0.0", port=5001)   # Mac·Win 공통
+    socketio.run(app, host="0.0.0.0", port=8000)   # Mac·Win 공통
