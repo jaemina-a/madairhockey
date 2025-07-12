@@ -1,0 +1,93 @@
+.pixel-login-bg {
+  width: 100vw;
+  height: 100vh;
+  background: url('../assets/title_bg.png') center/cover no-repeat;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: flex-start;
+  position: relative;
+  overflow: hidden;
+}
+.pixel-title {
+  margin-top: 8vh;
+  margin-left: 5vw;
+  width: 340px;
+  height: auto;
+  image-rendering: pixelated;
+}
+.pixel-btns {
+  position: absolute;
+  right: 5vw;
+  bottom: 7vh;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  z-index: 2;
+}
+.pixel-btn-img {
+  width: 180px;
+  height: auto;
+  margin-bottom: 18px;
+  cursor: pointer;
+  image-rendering: pixelated;
+  transition: filter 0.15s;
+}
+.pixel-btn-img:hover {
+  filter: brightness(1.2) drop-shadow(2px 2px 0 #222);
+}
+.pixel-login-form {
+  position: absolute;
+  right: 0;
+  bottom: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  background: #222d;
+  border: 4px solid #fff;
+  box-shadow: 4px 4px 0 #000, 0 0 0 4px #888 inset;
+  border-radius: 0;
+  padding: 24px 32px 18px 32px;
+  z-index: 10;
+}
+.pixel-input {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 18px;
+  border: 3px solid #fff;
+  background: #444;
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 0;
+  box-shadow: 2px 2px 0 #000, 0 0 0 3px #888 inset;
+  margin-bottom: 14px;
+  outline: none;
+  image-rendering: pixelated;
+  letter-spacing: 1px;
+  width: 220px;
+}
+.pixel-input:focus {
+  border-color: #ff0;
+  color: #ff0;
+  background: #666;
+}
+.pixel-btn {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 18px;
+  border: 3px solid #fff;
+  background: #222;
+  color: #fff;
+  padding: 10px 32px;
+  border-radius: 0;
+  box-shadow: 2px 2px 0 #000, 0 0 0 3px #888 inset;
+  margin-top: 8px;
+  cursor: pointer;
+  image-rendering: pixelated;
+  letter-spacing: 1px;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.pixel-btn:hover {
+  background: #666;
+  border-color: #ff0;
+  color: #ff0;
+}
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap'); 
