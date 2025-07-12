@@ -43,6 +43,14 @@ def register_socket_handlers(socketio):
             dy = data.get("dy", 0)
             g.move_paddle(data["side"], dx, dy)
 
+    @socketio.on("paddle_position")
+    def paddle_position(data):
+        g = games.get(data["room"])
+        if g:
+            x = data.get("x", 0)
+            y = data.get("y", 0)
+            g.set_paddle_position(data["side"], x, y)
+
     @socketio.on("activate_skill")
     def activate_skill(data):
         g = games.get(data["room"])

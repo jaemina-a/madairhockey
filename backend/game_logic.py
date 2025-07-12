@@ -2,7 +2,7 @@ import random
 
 class Game:
     W, H = 400, 700
-    PR = 15     # 패들 반지름 (원형)
+    PR = 25     # 패들 반지름 (원형)
     BR = 12     # 공 반지름
     SPD, TICK = 7, 1/60         # 픽셀/frame, 60 fps
     
@@ -40,7 +40,8 @@ class Game:
         dy = self.by - top_paddle["y"]
         distance = (dx*dx + dy*dy)**0.5
         
-        if distance <= self.PR + self.BR and self.by < top_paddle["y"] + self.PR:
+        # 충돌 감지 개선: 거리만으로 판단하고 추가 조건 제거
+        if distance <= self.PR + self.BR:
             # 충돌 처리 - 패들 중심에서 공을 밀어냄
             if distance > 0:
                 # 정규화된 방향 벡터
@@ -73,7 +74,8 @@ class Game:
         dy = self.by - bottom_paddle["y"]
         distance = (dx*dx + dy*dy)**0.5
         
-        if distance <= self.PR + self.BR and self.by > bottom_paddle["y"] - self.PR:
+        # 충돌 감지 개선: 거리만으로 판단하고 추가 조건 제거
+        if distance <= self.PR + self.BR:
             # 충돌 처리 - 패들 중심에서 공을 밀어냄
             if distance > 0:
                 # 정규화된 방향 벡터
@@ -130,6 +132,17 @@ class Game:
         # 패들을 원형으로 이동 (x, y축 모두 이동)
         x = max(self.PR, min(self.W-self.PR, self.paddle[side]["x"]+dx))
         y = max(self.PR, min(self.H-self.PR, self.paddle[side]["y"]+dy))
+        self.paddle[side]["x"] = x
+        self.paddle[side]["y"] = y
+
+    def set_paddle_position(self, side, x, y):
+        """패들을 절대 위치로 이동 (마우스 조작용)"""
+        if side == "left": side = "top"
+        if side == "right": side = "bottom"
+        
+        # 패들을 원형으로 이동 (x, y축 모두 이동)
+        x = max(self.PR, min(self.W-self.PR, x))
+        y = max(self.PR, min(self.H-self.PR, y))
         self.paddle[side]["x"] = x
         self.paddle[side]["y"] = y
 

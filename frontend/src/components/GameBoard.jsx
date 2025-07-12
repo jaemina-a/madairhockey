@@ -1,13 +1,27 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { io } from "socket.io-client";
 
 // 세로형 에어하키 보드 크기
-const W = 406, H = 700, PR = 15, BR = 12;
+const W = 406, H = 700, PR = 25, BR = 12;
 
 // 골대 설정
 const GOAL_WIDTH = 120;
 const GOAL_HEIGHT = 20;
+
+// Throttle 함수
+function throttle(func, limit) {
+  let inThrottle;
+  return function() {
+    const args = arguments;
+    const context = this;
+    if (!inThrottle) {
+      func.apply(context, args);
+      inThrottle = true;
+      setTimeout(() => inThrottle = false, limit);
+    }
+  }
+}
 
 export default function GameBoard() {
   const [searchParams] = useSearchParams();
@@ -16,8 +30,12 @@ export default function GameBoard() {
   const [state, setState] = useState(null);
   const [side, setSide] = useState(null);
   const [userSkills, setUserSkills] = useState([]);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [localPaddlePosition, setLocalPaddlePosition] = useState(null);
   const room = "default";
   const socketRef = useRef(null);
+  const gameBoardRef = useRef(null);
+  const lastServerUpdate = useRef(0);
 
   // 유저 스킬 가져오기
   useEffect(() => {
@@ -42,43 +60,89 @@ export default function GameBoard() {
     socketRef.current = socket;
     socket.emit("join", { room, username });
     socket.on("joined", data => setSide(data.side));
-    socket.on("state", data => setState(data));
+    socket.on("state", data => {
+      setState(data);
+      // 서버 상태와 로컬 상태 동기화
+      if (side && data.paddles) {
+        const currentPaddle = side === 'left' ? data.paddles.top : data.paddles.bottom;
+        setLocalPaddlePosition(currentPaddle);
+      }
+    });
     return () => {
       socket.off("joined");
       socket.off("state");
       socket.disconnect();
     };
-  }, [username]);
+  }, [username, side]);
 
+  // 서버 업데이트 throttle 함수
+  const throttledServerUpdate = useCallback(
+    throttle((x, y) => {
+      if (socketRef.current) {
+        socketRef.current.emit("paddle_position", { room, side, x, y });
+      }
+    }, 16), // 약 60fps
+    [room, side]
+  );
+
+  // 마우스 이벤트 처리
   useEffect(() => {
-    const key = e => {
-      let dx = 0;
-      let dy = 0;
-      if (side === "left") {
-        if (e.key === "a") dx = -15;
-        if (e.key === "d") dx = +15;
-        if (e.key === "w") dy = -15;
-        if (e.key === "s") dy = +15;
-        if (e.key === "1") socketRef.current?.emit("activate_skill", { room, side, skill_id: 1 });
-        if (e.key === "2") socketRef.current?.emit("activate_skill", { room, side, skill_id: 2 });
-        if (e.key === "3") socketRef.current?.emit("activate_skill", { room, side, skill_id: 3 });
-        if (e.key === "4") socketRef.current?.emit("activate_skill", { room, side, skill_id: 4 });
-      } else if (side === "right") {
-        if (e.key === "ArrowLeft") dx = -15;
-        if (e.key === "ArrowRight") dx = +15;
-        if (e.key === "ArrowUp") dy = -15;
-        if (e.key === "ArrowDown") dy = +15;
-        if (e.key === "1") socketRef.current?.emit("activate_skill", { room, side, skill_id: 1 });
-        if (e.key === "2") socketRef.current?.emit("activate_skill", { room, side, skill_id: 2 });
-        if (e.key === "3") socketRef.current?.emit("activate_skill", { room, side, skill_id: 3 });
-        if (e.key === "4") socketRef.current?.emit("activate_skill", { room, side, skill_id: 4 });
-      }
-      if ((dx !== 0 || dy !== 0) && side && socketRef.current) {
-        socketRef.current.emit("paddle_move", { room, side, dx, dy });
-      }
+    const handleMouseMove = (e) => {
+      if (!gameBoardRef.current || !side) return;
+      
+      const rect = gameBoardRef.current.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      
+      // 게임 보드 내부 좌표로 변환
+      const gameX = Math.max(PR, Math.min(W - PR, x));
+      const gameY = Math.max(PR, Math.min(H - PR, y));
+      
+      setMousePosition({ x: gameX, y: gameY });
+      
+      // 로컬 상태 즉시 업데이트 (즉시 반응)
+      setLocalPaddlePosition({ x: gameX, y: gameY });
+      
+      // 서버에 위치 전송 (throttle 적용)
+      throttledServerUpdate(gameX, gameY);
     };
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
+
+    const handleMouseEnter = () => {
+      // 마우스가 게임 보드에 들어왔을 때 처리
+    };
+
+    const handleMouseLeave = () => {
+      // 마우스가 게임 보드를 벗어났을 때 처리
+    };
+
+    const gameBoard = gameBoardRef.current;
+    if (gameBoard) {
+      gameBoard.addEventListener('mousemove', handleMouseMove);
+      gameBoard.addEventListener('mouseenter', handleMouseEnter);
+      gameBoard.addEventListener('mouseleave', handleMouseLeave);
+      
+      return () => {
+        gameBoard.removeEventListener('mousemove', handleMouseMove);
+        gameBoard.removeEventListener('mouseenter', handleMouseEnter);
+        gameBoard.removeEventListener('mouseleave', handleMouseLeave);
+      };
+    }
+  }, [side, throttledServerUpdate]);
+
+  // 키보드 스킬 사용
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!side || !socketRef.current) return;
+      
+      // 스킬 키 처리
+      if (e.key === "1") socketRef.current.emit("activate_skill", { room, side, skill_id: 1 });
+      if (e.key === "2") socketRef.current.emit("activate_skill", { room, side, skill_id: 2 });
+      if (e.key === "3") socketRef.current.emit("activate_skill", { room, side, skill_id: 3 });
+      if (e.key === "4") socketRef.current.emit("activate_skill", { room, side, skill_id: 4 });
+    };
+    
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [side]);
 
   const handleSkillClick = (skillId) => {
@@ -90,9 +154,15 @@ export default function GameBoard() {
   if (!state) return <p style={{textAlign:'center',marginTop:'3em',fontSize:'1.2em'}}>대전 상대를 기다리는 중…</p>;
   const { ball, paddles, scores, skills } = state;
 
+  // 로컬 패들 위치와 서버 패들 위치 병합
+  const displayPaddles = {
+    top: side === 'left' && localPaddlePosition ? localPaddlePosition : paddles.top,
+    bottom: side === 'right' && localPaddlePosition ? localPaddlePosition : paddles.bottom
+  };
+
   let sideLabel = '';
-  if (side === 'left') sideLabel = '당신은 위쪽입니다 (WASD)';
-  else if (side === 'right') sideLabel = '당신은 아래쪽입니다 (←↑↓→)';
+  if (side === 'left') sideLabel = '당신은 위쪽입니다 (마우스로 조작)';
+  else if (side === 'right') sideLabel = '당신은 아래쪽입니다 (마우스로 조작)';
   else if (side === null) sideLabel = '';
 
   const mySkill = side === 'left' ? skills.top : side === 'right' ? skills.bottom : null;
@@ -118,10 +188,14 @@ export default function GameBoard() {
 
       <div style={{ fontWeight: 'bold', marginBottom: 12, fontSize: '1.1em', color: '#3b3b3b' }}>{sideLabel}</div>
 
-      <div style={{
-        width: W, height: H, background: 'linear-gradient(180deg, #e0e7ff 0%, #c7d2fe 100%)',
-        borderRadius: 32, boxShadow: '0 8px 32px rgba(80,100,180,0.15)', position: 'relative', overflow: 'hidden', border: '4px solid #6366f1', marginBottom: 24
-      }}>
+      <div 
+        ref={gameBoardRef}
+        style={{
+          width: W, height: H, background: 'linear-gradient(180deg, #e0e7ff 0%, #c7d2fe 100%)',
+          borderRadius: 32, boxShadow: '0 8px 32px rgba(80,100,180,0.15)', position: 'relative', overflow: 'hidden', border: '4px solid #6366f1', marginBottom: 24,
+          cursor: side ? 'crosshair' : 'default'
+        }}
+      >
         {/* 중앙 라인 */}
         <div style={{
           position: 'absolute', left: W/2-2, top: 0, width: 4, height: H, background: 'rgba(99,102,241,0.12)', zIndex: 1
@@ -130,8 +204,8 @@ export default function GameBoard() {
         {/* 위쪽 패들 (원형) */}
         <div style={{
           position: 'absolute', 
-          left: paddles.top.x - PR, 
-          top: paddles.top.y - PR,
+          left: displayPaddles.top.x - PR, 
+          top: displayPaddles.top.y - PR,
           width: PR*2, 
           height: PR*2, 
           borderRadius: '50%',
@@ -152,15 +226,15 @@ export default function GameBoard() {
               })()
             : '0 2px 8px #6366f155', 
           zIndex: 2,
-          transition: 'all 0.3s ease',
+          transition: side === 'left' ? 'none' : 'all 0.3s ease', // 내 패들은 즉시 반응
           border: '2px solid rgba(255,255,255,0.3)'
         }} />
         
         {/* 아래쪽 패들 (원형) */}
         <div style={{
           position: 'absolute', 
-          left: paddles.bottom.x - PR, 
-          top: paddles.bottom.y - PR,
+          left: displayPaddles.bottom.x - PR, 
+          top: displayPaddles.bottom.y - PR,
           width: PR*2, 
           height: PR*2, 
           borderRadius: '50%',
@@ -181,7 +255,7 @@ export default function GameBoard() {
               })()
             : '0 2px 8px #f59e4255', 
           zIndex: 2,
-          transition: 'all 0.3s ease',
+          transition: side === 'right' ? 'none' : 'all 0.3s ease', // 내 패들은 즉시 반응
           border: '2px solid rgba(255,255,255,0.3)'
         }} />
 
@@ -262,7 +336,7 @@ export default function GameBoard() {
         marginBottom: 8
       }}>
         <b>조작법</b> <br/>
-        위쪽: <b>WASD</b> &nbsp;&nbsp; 아래쪽: <b>←↑↓→</b> <br/>
+        패들 조작: <b>마우스</b> <br/>
         스킬: <b>1-4</b> 키 또는 버튼 클릭
       </div>
 
