@@ -1,12 +1,9 @@
-import { useState, useEffect } from "react";
-import { BrowserRouter as Router, Routes, Route, useNavigate } from "react-router-dom";
-import LoginPage from "./components/LoginPage";
-import GameBoard from "./components/GameBoard";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import TitlePage from "./components/TitlePage";
 import MyPage from "./components/MyPage";
-import ShopPage from "./components/ShopPage";
-import SkinPage from "./components/SkinPage";
 
 export default function App() {
+
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [username, setUsername] = useState("");
 
@@ -86,6 +83,7 @@ export default function App() {
           <Route path="/skin" element={<SkinPage />} />
         </Routes>
       </div>
+
     </Router>
   );
 }

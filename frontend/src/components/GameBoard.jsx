@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 
 // 세로형 에어하키 보드 크기
+
 const W = 406, H = 700, PR = 15, BR = 12;
 
 // 골대 설정
@@ -9,6 +10,7 @@ const GOAL_WIDTH = 120;
 const GOAL_HEIGHT = 20;
 
 export default function GameBoard({ username }) {
+
   const [state, setState] = useState(null);
   const [side, setSide] = useState(null);
   const room = "default";
@@ -29,10 +31,11 @@ export default function GameBoard({ username }) {
 
   useEffect(() => {
     const key = e => {
-      let dx = 0, dy = 0;
+      let dx = 0;
       if (side === "left") {
         if (e.key === "a") dx = -15;
         if (e.key === "d") dx = +15;
+
         if (e.key === "w") dy = -15;
         if (e.key === "s") dy = +15;
         if (e.key === "1") socketRef.current?.emit("activate_skill", { room, side, skill_id: 1 });
@@ -51,11 +54,14 @@ export default function GameBoard({ username }) {
       }
       if ((dx !== 0 || dy !== 0) && side && socketRef.current) {
         socketRef.current.emit("paddle_move", { room, side, dx, dy });
+
       }
+      if (dx && side && socketRef.current) socketRef.current.emit("paddle_move", { room, side, dx });
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
   }, [side]);
+
 
   const handleSkillClick = (skillId) => {
     if (side && socketRef.current) {
@@ -63,13 +69,15 @@ export default function GameBoard({ username }) {
     }
   };
 
+
   if (!state) return <p style={{textAlign:'center',marginTop:'3em',fontSize:'1.2em'}}>대전 상대를 기다리는 중…</p>;
-  const { ball, paddles, scores, skills } = state;
+  const { ball, paddles, scores } = state;
 
   let sideLabel = '';
-  if (side === 'left') sideLabel = '당신은 위쪽입니다 (WASD 이동, 1-4 스킬)';
-  else if (side === 'right') sideLabel = '당신은 아래쪽입니다 (화살표 이동, 1-4 스킬)';
+  if (side === 'left') sideLabel = '당신은 위쪽입니다 (A/D)';
+  else if (side === 'right') sideLabel = '당신은 아래쪽입니다 (←/→)';
   else if (side === null) sideLabel = '';
+
 
   const mySkill = side === 'left' ? skills.top : side === 'right' ? skills.bottom : null;
   const myAvailableSkills = mySkill?.available || [];
@@ -88,35 +96,16 @@ export default function GameBoard({ username }) {
         <div style={{
           position: 'absolute', left: W/2-2, top: 0, width: 4, height: H, background: 'rgba(99,102,241,0.12)', zIndex: 1
         }} />
-        
-        {/* 위쪽 골대 */}
+        {/* 위쪽 패들 */}
         <div style={{
-          position: 'absolute',
-          left: W/2 - GOAL_WIDTH/2,
-          top: 0,
-          width: GOAL_WIDTH,
-          height: GOAL_HEIGHT,
-          background: 'linear-gradient(180deg, #fbbf24 0%, #f59e0b 100%)',
-          border: '3px solid #92400e',
-          borderBottom: 'none',
-          borderRadius: '8px 8px 0 0',
-          zIndex: 1
+          position: 'absolute', left: paddles.top, top: 0,
+          width: PW, height: PH, background: 'linear-gradient(90deg,#6366f1 60%,#818cf8 100%)', borderRadius: 8, boxShadow: '0 2px 8px #6366f155', zIndex: 2
         }} />
-        
-        {/* 아래쪽 골대 */}
+        {/* 아래쪽 패들 */}
         <div style={{
-          position: 'absolute',
-          left: W/2 - GOAL_WIDTH/2,
-          bottom: 0,
-          width: GOAL_WIDTH,
-          height: GOAL_HEIGHT,
-          background: 'linear-gradient(180deg, #f59e0b 0%, #fbbf24 100%)',
-          border: '3px solid #92400e',
-          borderTop: 'none',
-          borderRadius: '0 0 8px 8px',
-          zIndex: 1
-        }} />
-        
+          position: 'absolute', left: paddles.bottom, bottom: 0,
+          width: PW, height: PH, background: 'linear-gradient(90deg,#f59e42 60%,#fbbf24 100%)', borderRadius: 8, boxShadow: '0 2px 8px #f59e4255', zIndex: 2
+        }} />   
         {/* 위쪽 패들 (원형) */}
         <div style={{
           position: 'absolute', 
@@ -175,15 +164,12 @@ export default function GameBoard({ username }) {
           border: '2px solid rgba(255,255,255,0.3)'
         }} />
         
+
         {/* 공 */}
         <div style={{
           position: 'absolute', left: ball.x - BR, top: ball.y - BR,
-          width: BR*2, height: BR*2, borderRadius: '50%', 
-          background: 'radial-gradient(circle at 30% 30%, #f87171 70%, #991b1b 100%)', 
-          boxShadow: '0 2px 12px #991b1b33', 
-          zIndex: 3
+          width: BR*2, height: BR*2, borderRadius: '50%', background: 'radial-gradient(circle at 30% 30%, #f87171 70%, #991b1b 100%)', boxShadow: '0 2px 12px #991b1b33', zIndex: 3
         }} />
-        
         {/* 점수 표시 */}
         <div style={{
           position: 'absolute', left: 0, right: 0, top: H/2-40, textAlign: 'center', fontSize: '2.5em', fontWeight: 700, color: '#6366f1', opacity: 0.15, zIndex: 0
@@ -246,6 +232,7 @@ export default function GameBoard({ username }) {
         </div>
       )}
 
+
       <div style={{
         background: 'rgba(99,102,241,0.08)',
         borderRadius: 12,
@@ -256,7 +243,7 @@ export default function GameBoard({ username }) {
         marginBottom: 8
       }}>
         <b>조작법</b> <br/>
-        위쪽: <b>WASD</b> 이동, <b>1-4</b> 스킬 &nbsp;&nbsp; 아래쪽: <b>화살표</b> 이동, <b>1-4</b> 스킬
+        위쪽: <b>A/D</b> &nbsp;&nbsp; 아래쪽: <b>←/→</b>
       </div>
 
       <style>{`
@@ -265,6 +252,7 @@ export default function GameBoard({ username }) {
           100% { transform: translateX(100%); }
         }
       `}</style>
+
     </div>
   );
 }
