@@ -30,15 +30,34 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 # ─────────── 게임 로직 ───────────
 class Game:
     W, H = 400, 700
-    PW, PH, BR = 80, 10, 12     # 패들 폭/높이, 공 반지름
+    PR = 15     # 패들 반지름 (원형)g
+    BR = 12     # 공 반지름
     SPD, TICK = 7, 1/60         # 픽셀/frame, 60 fps
+    
+    # 골대 설정
+    GOAL_WIDTH = 121  # 골대 폭
+    GOAL_HEIGHT = 20  # 골대 높이
+    
+    # 스킬 배율 정의
+    SKILL_MULTIPLIERS = {
+        1: 1.5,  # 스킬 1: 1.5배
+        2: 2.0,  # 스킬 2: 2.0배
+        3: 2.5,  # 스킬 3: 2.5배
+        4: 3.0   # 스킬 4: 3.0배
+    }
 
     def __init__(self, room):
         self.room = room
         self.reset_ball(random.choice([-1, 1]))
-        mid = self.W//2 - self.PW//2
-        self.paddle = {"top": mid, "bottom": mid}
+        # 패들을 원형으로 변경 - 중앙 좌표로 저장
+        self.paddle = {
+            "top": {"x": self.W//2, "y": 30},      # 위쪽 패들
+            "bottom": {"x": self.W//2, "y": self.H-30}  # 아래쪽 패들
+        }
         self.score  = {"top": 0, "bottom": 0}
+        # 스킬 관련 상태 - 각 플레이어별로 활성화된 스킬 번호 (0은 비활성화)
+        self.active_skill = {"top": 0, "bottom": 0}
+        self.base_speed = self.SPD
 
     # 물리 한 프레임
     def step(self):
@@ -49,37 +68,116 @@ class Game:
         if self.bx - self.BR <= 0 or self.bx + self.BR >= self.W:
             self.vx *= -1
 
-        # 위쪽 패들 충돌
-        if self.by - self.BR <= self.PH and self.paddle["top"] <= self.bx <= self.paddle["top"]+self.PW:
-            self.vy, self.by = abs(self.vy), self.PH + self.BR
-        # 아래쪽 패들 충돌
-        if self.by + self.BR >= self.H-self.PH and self.paddle["bottom"] <= self.bx <= self.paddle["bottom"]+self.PW:
-            self.vy, self.by = -abs(self.vy), self.H-self.PH-self.BR
+        # 위쪽 패들 충돌 (원형)
+        top_paddle = self.paddle["top"]
+        dx = self.bx - top_paddle["x"]
+        dy = self.by - top_paddle["y"]
+        distance = (dx*dx + dy*dy)**0.5
+        
+        if distance <= self.PR + self.BR and self.by < top_paddle["y"] + self.PR:
+            # 충돌 처리 - 패들 중심에서 공을 밀어냄
+            if distance > 0:
+                # 정규화된 방향 벡터
+                nx = dx / distance
+                ny = dy / distance
+                
+                # 공을 패들 밖으로 밀어냄
+                self.bx = top_paddle["x"] + nx * (self.PR + self.BR)
+                self.by = top_paddle["y"] + ny * (self.PR + self.BR)
+                
+                # 반사 벡터 계산
+                dot_product = self.vx * nx + self.vy * ny
+                self.vx = self.vx - 2 * dot_product * nx
+                self.vy = self.vy - 2 * dot_product * ny
+                
+                # 스킬이 활성화되어 있으면 공 속도 증가
+                if self.active_skill["top"] > 0:
+                    multiplier = self.SKILL_MULTIPLIERS[self.active_skill["top"]]
+                    self.vy *= multiplier
+                    self.vx *= multiplier
+                    self.active_skill["top"] = 0  # 스킬 사용 후 비활성화
 
-        # 골 체크
-        if self.by < 0:
+        # 아래쪽 패들 충돌 (원형)
+        bottom_paddle = self.paddle["bottom"]
+        dx = self.bx - bottom_paddle["x"]
+        dy = self.by - bottom_paddle["y"]
+        distance = (dx*dx + dy*dy)**0.5
+        
+        if distance <= self.PR + self.BR and self.by > bottom_paddle["y"] - self.PR:
+            # 충돌 처리 - 패들 중심에서 공을 밀어냄
+            if distance > 0:
+                # 정규화된 방향 벡터
+                nx = dx / distance
+                ny = dy / distance
+                
+                # 공을 패들 밖으로 밀어냄
+                self.bx = bottom_paddle["x"] + nx * (self.PR + self.BR)
+                self.by = bottom_paddle["y"] + ny * (self.PR + self.BR)
+                
+                # 반사 벡터 계산
+                dot_product = self.vx * nx + self.vy * ny
+                self.vx = self.vx - 2 * dot_product * nx
+                self.vy = self.vy - 2 * dot_product * ny
+                
+                # 스킬이 활성화되어 있으면 공 속도 증가
+                if self.active_skill["bottom"] > 0:
+                    multiplier = self.SKILL_MULTIPLIERS[self.active_skill["bottom"]]
+                    self.vy *= multiplier
+                    self.vx *= multiplier
+                    self.active_skill["bottom"] = 0  # 스킬 사용 후 비활성화
+
+        # 골 체크 - 골대에 들어갔는지 확인
+        goal_center_x = self.W // 2
+        
+        # 위쪽 골대 (bottom 플레이어가 득점)
+        if (self.by - self.BR <= self.GOAL_HEIGHT and 
+            goal_center_x - self.GOAL_WIDTH//2 <= self.bx <= goal_center_x + self.GOAL_WIDTH//2):
             self.score["bottom"] += 1
-            self.reset_ball(1)
-        elif self.by > self.H:
+            self.reset_ball(1)  # 중앙에서 시작
+        # 아래쪽 골대 (top 플레이어가 득점)
+        elif (self.by + self.BR >= self.H - self.GOAL_HEIGHT and 
+              goal_center_x - self.GOAL_WIDTH//2 <= self.bx <= goal_center_x + self.GOAL_WIDTH//2):
             self.score["top"] += 1
-            self.reset_ball(-1)
+            self.reset_ball(-1)  # 중앙에서 시작
+        # 상하단 벽에 닿으면 공 리셋 (골대 밖)
+        elif self.by < 0 or self.by > self.H:
+            self.reset_ball(1 if self.by < 0 else -1)
 
     def reset_ball(self, direction):
+        """일반적인 공 리셋 (중앙에서 시작)"""
         self.bx, self.by = self.W//2, self.H//2
         self.vy = direction*self.SPD
         self.vx = random.choice([-self.SPD, self.SPD])
 
-    def move_paddle(self, side, dx):
+    def move_paddle(self, side, dx, dy):
         if side == "left": side = "top"
         if side == "right": side = "bottom"
-        x = max(0, min(self.W-self.PW, self.paddle[side]+dx))
-        self.paddle[side] = x
+        
+        # 패들을 원형으로 이동 (x, y축 모두 이동)
+        x = max(self.PR, min(self.W-self.PR, self.paddle[side]["x"]+dx))
+        y = max(self.PR, min(self.H-self.PR, self.paddle[side]["y"]+dy))
+        self.paddle[side]["x"] = x
+        self.paddle[side]["y"] = y
+
+    def activate_skill(self, side, skill_number):
+        if side == "left": side = "top"
+        if side == "right": side = "bottom"
+        
+        # 스킬 번호가 유효한지 확인
+        if skill_number in self.SKILL_MULTIPLIERS:
+            self.active_skill[side] = skill_number
+            return True
+        return False
 
     def out(self):
         return {
             "ball":     {"x": self.bx, "y": self.by},
             "paddles":  self.paddle,
-            "scores":   self.score
+            "scores":   self.score,
+            "skills":   {
+                "top": {"active": self.active_skill["top"]},
+                "bottom": {"active": self.active_skill["bottom"]}
+            }
         }
 
 # ─────────── 룸 상태 관리 ───────────
@@ -111,7 +209,18 @@ def join(data):
 def paddle_move(data):
     g = games.get(data["room"])
     if g:
-        g.move_paddle(data["side"], data["dx"])
+        dx = data.get("dx", 0)
+        dy = data.get("dy", 0)
+        g.move_paddle(data["side"], dx, dy)
+
+@socketio.on("activate_skill")
+def activate_skill(data):
+    g = games.get(data["room"])
+    if g:
+        skill_number = data.get("skill_number", 1)
+        success = g.activate_skill(data["side"], skill_number)
+        if success:
+            emit("skill_activated", {"side": data["side"], "skill_number": skill_number}, room=data["room"])
 
 @socketio.on("disconnect")
 def disconnect():
