@@ -27,7 +27,7 @@ export default function TitlePage() {
       });
       if (res.ok) {
         setLoginMsg("");
-        navigate("/mypage");
+        navigate(`/mypage?username=${encodeURIComponent(loginId)}`);
       } else {
         setLoginMsg("없는 회원입니다");
       }

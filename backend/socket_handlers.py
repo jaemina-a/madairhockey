@@ -1,0 +1,74 @@
+from threading import Lock
+from flask_socketio import emit, join_room
+from flask import request
+from game_logic import Game
+from database import get_user_skills
+
+# ─────────── 룸 상태 관리 ───────────
+games         = {}
+participants  = {}
+bg_lock       = Lock()
+
+def register_socket_handlers(socketio):
+    @socketio.on("join")
+    def join(data):
+        room = data.get("room", "default")
+        username = data.get("username")
+        join_room(room)
+        sid = request.sid
+
+        participants.setdefault(room, set()).add(sid)
+        games.setdefault(room, Game(room))
+
+        num = len(participants[room])          # 플레이어 인원
+        side = "left" if num == 1 else "right" if num == 2 else None
+        if side is None:
+            emit("joined", {"side": None, "error": "방이 가득 찼습니다."})
+            return
+
+        # 유저의 스킬 정보 가져오기
+        if username:
+            user_skills = get_user_skills(username)
+            games[room].set_player_skills(side, user_skills)
+
+        emit("joined", {"side": side})
+        emit("state", games[room].out(), room=room)
+        print("JOIN", room, side, "참가자수:", num)
+
+    @socketio.on("paddle_move")
+    def paddle_move(data):
+        g = games.get(data["room"])
+        if g:
+            dx = data.get("dx", 0)
+            dy = data.get("dy", 0)
+            g.move_paddle(data["side"], dx, dy)
+
+    @socketio.on("activate_skill")
+    def activate_skill(data):
+        g = games.get(data["room"])
+        if g:
+            skill_id = data.get("skill_id", 1)
+            success = g.activate_skill(data["side"], skill_id)
+            if success:
+                emit("skill_activated", {"side": data["side"], "skill_id": skill_id}, room=data["room"])
+
+    @socketio.on("disconnect")
+    def disconnect():
+        sid = request.sid
+        for room, sids in list(participants.items()):
+            if sid in sids:
+                sids.remove(sid)
+                print(f"DISCONNECT: {sid} from {room}")
+                if not sids:                  # 방에 아무도 없으면 삭제
+                    participants.pop(room, None)
+                    games.pop(room, None)
+                break
+
+def get_games():
+    return games
+
+def get_participants():
+    return participants
+
+def get_bg_lock():
+    return bg_lock 
