@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
 .title-bg {
   width: 100vw;
   height: 100vh;
@@ -135,4 +137,3 @@
   text-align: center;
   image-rendering: pixelated;
 }
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap'); 

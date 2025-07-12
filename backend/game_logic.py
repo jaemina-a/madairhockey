@@ -1,4 +1,5 @@
 import random
+import time
 
 class Game:
     W, H = 400, 700
@@ -12,18 +13,18 @@ class Game:
 
     def __init__(self, room):
         self.room = room
-        self.reset_ball(random.choice([-1, 1]))
-        # 패들을 원형으로 변경 - 중앙 좌표로 저장
+        self.bx, self.by = self.W//2, self.H//2
+        self.vx, self.vy = self.SPD, self.SPD
         self.paddle = {
-            "top": {"x": self.W//2, "y": 30},      # 위쪽 패들
-            "bottom": {"x": self.W//2, "y": self.H-30}  # 아래쪽 패들
+            "top": {"x": self.W//2, "y": 50},
+            "bottom": {"x": self.W//2, "y": self.H-50}
         }
-        self.score  = {"top": 0, "bottom": 0}
-        # 스킬 관련 상태 - 각 플레이어별로 활성화된 스킬 번호 (0은 비활성화)
-        self.active_skill = {"top": 0, "bottom": 0}
-        self.base_speed = self.SPD
-        # 플레이어별 스킬 정보
+        self.score = {"top": 0, "bottom": 0}
+        self.active_skill = {"top": 0, "bottom": 0}  # 현재 활성화된 스킬 ID
+        self.selected_skill = {"top": 0, "bottom": 0}  # 선택된 스킬 ID
         self.player_skills = {"top": [], "bottom": []}
+        self.skill_cooldowns = {"top": {}, "bottom": {}}  # 스킬별 마지막 사용 시간
+        self.base_speed = self.SPD
 
     # 물리 한 프레임
     def step(self):
@@ -57,7 +58,11 @@ class Game:
                 self.vx = self.vx - 2 * dot_product * nx
                 self.vy = self.vy - 2 * dot_product * ny
                 
-                # 스킬이 활성화되어 있으면 공 속도 증가
+                # 선택된 스킬이 있으면 자동으로 활성화
+                if self.active_skill["top"] == 0:  # 이미 활성화된 스킬이 없을 때만
+                    self.auto_activate_selected_skill("top")
+                
+                # 스킬이 활성화되어 있으면 공 속도 증가 및 쿨타임 시작
                 if self.active_skill["top"] > 0:
                     # 활성화된 스킬의 배율 찾기
                     for skill in self.player_skills["top"]:
@@ -66,7 +71,8 @@ class Game:
                             self.vy *= multiplier
                             self.vx *= multiplier
                             break
-                    self.active_skill["top"] = 0  # 스킬 사용 후 비활성화
+                    # 스킬 효과 적용 후 쿨타임 시작
+                    self.apply_skill_effect("top")
 
         # 아래쪽 패들 충돌 (원형)
         bottom_paddle = self.paddle["bottom"]
@@ -91,7 +97,11 @@ class Game:
                 self.vx = self.vx - 2 * dot_product * nx
                 self.vy = self.vy - 2 * dot_product * ny
                 
-                # 스킬이 활성화되어 있으면 공 속도 증가
+                # 선택된 스킬이 있으면 자동으로 활성화
+                if self.active_skill["bottom"] == 0:  # 이미 활성화된 스킬이 없을 때만
+                    self.auto_activate_selected_skill("bottom")
+                
+                # 스킬이 활성화되어 있으면 공 속도 증가 및 쿨타임 시작
                 if self.active_skill["bottom"] > 0:
                     # 활성화된 스킬의 배율 찾기
                     for skill in self.player_skills["bottom"]:
@@ -100,7 +110,8 @@ class Game:
                             self.vy *= multiplier
                             self.vx *= multiplier
                             break
-                    self.active_skill["bottom"] = 0  # 스킬 사용 후 비활성화
+                    # 스킬 효과 적용 후 쿨타임 시작
+                    self.apply_skill_effect("bottom")
 
         # 골 체크 - 골대에 들어갔는지 확인
         goal_center_x = self.W // 2
@@ -152,6 +163,12 @@ class Game:
         if side == "right": side = "bottom"
         self.player_skills[side] = skills
 
+    def set_selected_skill(self, side, skill_id):
+        """플레이어가 선택한 스킬 설정"""
+        if side == "left": side = "top"
+        if side == "right": side = "bottom"
+        self.selected_skill[side] = skill_id
+
     def activate_skill(self, side, skill_id):
         if side == "left": side = "top"
         if side == "right": side = "bottom"
@@ -159,9 +176,55 @@ class Game:
         # 플레이어가 해당 스킬을 소유하고 있는지 확인
         for skill in self.player_skills[side]:
             if skill["id"] == skill_id:
+                # 쿨타임 확인 - 스킬이 이미 활성화되어 있으면 사용 불가
+                if self.active_skill[side] > 0:
+                    return False
+                
+                # 스킬 활성화 (쿨타임은 실제 사용 시점에 기록)
                 self.active_skill[side] = skill_id
                 return True
         return False
+
+    def auto_activate_selected_skill(self, side):
+        """충돌 시 선택된 스킬을 자동으로 활성화"""
+        if side == "left": side = "top"
+        if side == "right": side = "bottom"
+        
+        selected_id = self.selected_skill[side]
+        if selected_id > 0:
+            # 스킬 활성화
+            self.active_skill[side] = selected_id
+            # 선택된 스킬 리셋 (선택 상태 취소)
+            self.selected_skill[side] = 0
+            return True
+        return False
+
+    def apply_skill_effect(self, side):
+        """스킬 효과를 적용"""
+        if self.active_skill[side] > 0:
+            # 스킬 비활성화
+            self.active_skill[side] = 0
+
+    def get_skill_cooldown(self, side, skill_id):
+        """스킬의 남은 쿨타임을 반환 (초 단위)"""
+        if side == "left": side = "top"
+        if side == "right": side = "bottom"
+        
+        if skill_id not in self.skill_cooldowns[side]:
+            return 0.0
+        
+        current_time = time.time()
+        last_used = self.skill_cooldowns[side][skill_id]
+        
+        # 데이터베이스에서 쿨타임 정보 가져오기
+        cooldown_duration = 3.0  # 기본값
+        for skill in self.player_skills[side]:
+            if skill["id"] == skill_id and "cooldown" in skill:
+                cooldown_duration = skill["cooldown"]
+                break
+        
+        remaining = cooldown_duration - (current_time - last_used)
+        return max(0.0, remaining)
 
     def out(self):
         # 스킬 데이터를 JSON 직렬화 가능한 형태로 변환
@@ -181,7 +244,13 @@ class Game:
             "paddles":  self.paddle,
             "scores":   self.score,
             "skills":   {
-                "top": {"active": self.active_skill["top"], "available": convert_skills(self.player_skills["top"])},
-                "bottom": {"active": self.active_skill["bottom"], "available": convert_skills(self.player_skills["bottom"])}
+                "top": {
+                    "active": self.active_skill["top"], 
+                    "available": convert_skills(self.player_skills["top"])
+                },
+                "bottom": {
+                    "active": self.active_skill["bottom"], 
+                    "available": convert_skills(self.player_skills["bottom"])
+                }
             }
         } 

@@ -32,6 +32,7 @@ export default function GameBoard() {
   const [userSkills, setUserSkills] = useState([]);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [localPaddlePosition, setLocalPaddlePosition] = useState(null);
+  const [selectedSkillId, setSelectedSkillId] = useState(null);
   const room = "default";
   const socketRef = useRef(null);
   const gameBoardRef = useRef(null);
@@ -66,6 +67,16 @@ export default function GameBoard() {
       if (side && data.paddles) {
         const currentPaddle = side === 'left' ? data.paddles.top : data.paddles.bottom;
         setLocalPaddlePosition(currentPaddle);
+      }
+      
+      // 스킬 상태 동기화 - 스킬이 활성화되면 선택 상태 리셋
+      if (side && data.skills) {
+        const mySkillData = side === 'left' ? data.skills.top : data.skills.bottom;
+        // 스킬이 활성화되었고, 현재 선택된 스킬과 같으면 선택 상태 리셋
+        if (mySkillData.active > 0 && selectedSkillId === mySkillData.active) {
+          console.log('스킬 발동됨, 선택 상태 리셋');
+          setSelectedSkillId(null);
+        }
       }
     });
     return () => {
@@ -129,27 +140,56 @@ export default function GameBoard() {
     }
   }, [side, throttledServerUpdate]);
 
-  // 키보드 스킬 사용
+  // 스킬 토글 함수
+  const toggleSkill = useCallback((skillId) => {
+    console.log('스킬 토글:', skillId, '현재 활성화:', selectedSkillId);
+    
+    // 이미 활성화된 스킬을 다시 누르면 비활성화
+    if (selectedSkillId === skillId) {
+      console.log('스킬 비활성화');
+      setSelectedSkillId(null);
+    } else {
+      // 다른 스킬 활성화 (기존 스킬은 자동으로 비활성화됨)
+      console.log('스킬 활성화');
+      setSelectedSkillId(skillId);
+    }
+  }, [selectedSkillId]);
+
+  // 키보드 스킬 활성화/비활성화
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (!side || !socketRef.current) return;
+      if (!side) return;
       
-      // 스킬 키 처리
-      if (e.key === "1") socketRef.current.emit("activate_skill", { room, side, skill_id: 1 });
-      if (e.key === "2") socketRef.current.emit("activate_skill", { room, side, skill_id: 2 });
-      if (e.key === "3") socketRef.current.emit("activate_skill", { room, side, skill_id: 3 });
-      if (e.key === "4") socketRef.current.emit("activate_skill", { room, side, skill_id: 4 });
+      // 스킬 키 처리 - 토글 방식
+      if (e.key === "1" || e.key === "2" || e.key === "3" || e.key === "4") {
+        const skillId = parseInt(e.key);
+        toggleSkill(skillId);
+      }
     };
     
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [side]);
+  }, [side, toggleSkill]);
 
-  const handleSkillClick = (skillId) => {
-    if (side && socketRef.current) {
-      socketRef.current.emit("activate_skill", { room, side, skill_id: skillId });
+  // 선택된 스킬 정보를 서버에 전송
+  useEffect(() => {
+    if (side && socketRef.current && selectedSkillId !== null) {
+      console.log('서버에 스킬 활성화 전송:', selectedSkillId);
+      socketRef.current.emit("set_selected_skill", { 
+        room, 
+        side, 
+        skill_id: selectedSkillId 
+      });
+    } else if (side && socketRef.current && selectedSkillId === null) {
+      // 선택 해제 시
+      console.log('서버에 스킬 비활성화 전송');
+      socketRef.current.emit("set_selected_skill", { 
+        room, 
+        side, 
+        skill_id: 0 
+      });
     }
-  };
+  }, [selectedSkillId, side, room]);
 
   if (!state) return <p style={{textAlign:'center',marginTop:'3em',fontSize:'1.2em'}}>대전 상대를 기다리는 중…</p>;
   const { ball, paddles, scores, skills } = state;
@@ -281,11 +321,11 @@ export default function GameBoard() {
         }}>
           {myAvailableSkills.map(skill => {
             const isActive = mySkill?.active === skill.id;
+            const isSelected = selectedSkillId === skill.id;
             
             return (
               <button
                 key={skill.id}
-                onClick={() => handleSkillClick(skill.id)}
                 style={{
                   padding: '0.8em 1.2em',
                   fontSize: '1em',
@@ -293,22 +333,35 @@ export default function GameBoard() {
                   borderRadius: 12,
                   background: isActive 
                     ? `linear-gradient(135deg, ${skill.color} 0%, ${skill.color}dd 100%)` 
+                    : isSelected
+                    ? `linear-gradient(135deg, ${skill.color}44 0%, ${skill.color}66 100%)`
                     : `linear-gradient(135deg, ${skill.color}22 0%, ${skill.color}44 100%)`,
                   color: isActive ? 'white' : skill.color,
-                  cursor: 'pointer',
+                  cursor: 'default', // 마우스 클릭 비활성화
                   boxShadow: isActive 
                     ? `0 4px 16px ${skill.color}40` 
+                    : isSelected
+                    ? `0 4px 16px ${skill.color}30`
                     : `0 2px 8px ${skill.color}20`,
                   transition: 'all 0.3s ease',
                   outline: 'none',
                   minWidth: 80,
-                  border: isActive ? `2px solid ${skill.color}` : `2px solid ${skill.color}22`,
+                  border: isActive 
+                    ? `2px solid ${skill.color}` 
+                    : isSelected 
+                    ? `2px solid ${skill.color}` 
+                    : `2px solid ${skill.color}22`,
                   position: 'relative',
-                  overflow: 'hidden'
+                  overflow: 'hidden',
                 }}
               >
                 <div style={{ fontSize: '1.2em', marginBottom: '0.2em' }}>{skill.icon}</div>
                 <div style={{ fontSize: '0.8em', fontWeight: 500 }}>{skill.multiplier}x</div>
+                <div style={{ fontSize: '0.7em', color: '#666', marginTop: '0.1em' }}>
+                  {skill.cooldown || 3.0}s
+                </div>
+                
+                {/* 활성화 상태 표시 */}
                 {isActive && (
                   <div style={{
                     position: 'absolute',
@@ -317,8 +370,27 @@ export default function GameBoard() {
                     right: 0,
                     bottom: 0,
                     background: `linear-gradient(45deg, transparent 30%, ${skill.color}22 50%, transparent 70%)`,
-                    animation: 'shimmer 1.5s infinite'
+                    animation: 'shimmer 1.5s infinite',
+                    borderRadius: 12
                   }} />
+                )}
+                
+                {/* 활성화된 스킬 표시 */}
+                {isSelected && !isActive && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 4,
+                    right: 8,
+                    fontSize: '0.7em',
+                    color: skill.color,
+                    fontWeight: 700,
+                    background: 'rgba(255,255,255,0.9)',
+                    padding: '2px 6px',
+                    borderRadius: 8,
+                    border: `1px solid ${skill.color}`
+                  }}>
+                    활성화됨
+                  </div>
                 )}
               </button>
             );
@@ -337,7 +409,8 @@ export default function GameBoard() {
       }}>
         <b>조작법</b> <br/>
         패들 조작: <b>마우스</b> <br/>
-        스킬: <b>1-4</b> 키 또는 버튼 클릭
+        스킬 활성화/비활성화: <b>1-4</b> 키 (토글) <br/>
+        스킬 발동: 공과 패들 충돌 시 자동 적용
       </div>
 
       <style>{`

@@ -41,7 +41,8 @@ def init_db():
             multiplier DECIMAL(3,1) NOT NULL,
             color VARCHAR(7) NOT NULL,
             description TEXT,
-            unlock_condition VARCHAR(100)
+            unlock_condition VARCHAR(100),
+            cooldown DECIMAL(3,1) DEFAULT 3.0
         )
     """)
     
@@ -70,14 +71,14 @@ def init_db():
     # 기본 스킬 데이터 삽입 (기존 데이터 삭제 후 다시 생성)
     cur.execute("DELETE FROM skills")
     default_skills = [
-        (1, "스킬 1", "⚡", 1.5, "#6366f1", "기본 속도 증가 스킬", "기본 제공"),
-        (2, "스킬 2", "🔥", 2.0, "#f59e0b", "고속 공격 스킬", "기본 제공"),
-        (3, "스킬 3", "💨", 2.5, "#10b981", "초고속 공격 스킬", "기본 제공"),
-        (4, "스킬 4", "🚀", 3.0, "#ef4444", "최고속 공격 스킬", "기본 제공")
+        (1, "스킬 1", "⚡", 1.5, "#6366f1", "기본 속도 증가 스킬", "기본 제공", 3.0),
+        (2, "스킬 2", "🔥", 2.0, "#f59e0b", "고속 공격 스킬", "기본 제공", 3.0),
+        (3, "스킬 3", "💨", 2.5, "#10b981", "초고속 공격 스킬", "기본 제공", 3.0),
+        (4, "스킬 4", "🚀", 3.0, "#ef4444", "최고속 공격 스킬", "기본 제공", 3.0)
     ]
     cur.executemany("""
-        INSERT INTO skills (id, name, icon, multiplier, color, description, unlock_condition) 
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO skills (id, name, icon, multiplier, color, description, unlock_condition, cooldown) 
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
     """, default_skills)
     print("기본 스킬 데이터를 생성했습니다.")
     
@@ -122,9 +123,9 @@ def get_user_skills(username):
     """유저가 소유한 스킬 목록 반환"""
     conn = pool.get_connection(); cur = conn.cursor(dictionary=True)
     
-    # 유저의 스킬 목록 조회
+    # 유저의 스킬 목록 조회 (쿨타임 정보 포함)
     cur.execute("""
-        SELECT s.id, s.name, s.icon, s.multiplier, s.color, s.description, us.unlocked, us.usage_count
+        SELECT s.id, s.name, s.icon, s.multiplier, s.color, s.description, s.cooldown, us.unlocked, us.usage_count
         FROM users u
         INNER JOIN user_skills us ON u.id = us.user_id
         INNER JOIN skills s ON us.skill_id = s.id
@@ -138,6 +139,8 @@ def get_user_skills(username):
     for skill in skills:
         if 'multiplier' in skill and hasattr(skill['multiplier'], '__float__'):
             skill['multiplier'] = float(skill['multiplier'])
+        if 'cooldown' in skill and hasattr(skill['cooldown'], '__float__'):
+            skill['cooldown'] = float(skill['cooldown'])
         if 'usage_count' in skill and skill['usage_count'] is not None:
             skill['usage_count'] = int(skill['usage_count'])
     

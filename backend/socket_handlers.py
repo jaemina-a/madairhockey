@@ -60,6 +60,13 @@ def register_socket_handlers(socketio):
             if success:
                 emit("skill_activated", {"side": data["side"], "skill_id": skill_id}, room=data["room"])
 
+    @socketio.on("set_selected_skill")
+    def set_selected_skill(data):
+        g = games.get(data["room"])
+        if g:
+            skill_id = data.get("skill_id", 0)
+            g.set_selected_skill(data["side"], skill_id)
+
     @socketio.on("disconnect")
     def disconnect():
         sid = request.sid
