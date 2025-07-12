@@ -15,6 +15,9 @@ export default function MyPage({ username }) {
     rank: "골드"
   });
 
+  const [userSkills, setUserSkills] = useState([]);
+  const [loading, setLoading] = useState(true);
+
   const [achievements] = useState([
     { id: 1, name: "첫 승리", icon: "🏆", unlocked: true, description: "첫 번째 게임에서 승리" },
     { id: 2, name: "연승 마스터", icon: "🔥", unlocked: true, description: "10연승 달성" },
@@ -23,6 +26,36 @@ export default function MyPage({ username }) {
     { id: 5, name: "올라운더", icon: "🌟", unlocked: true, description: "모든 스킨 수집" },
     { id: 6, name: "전설", icon: "👑", unlocked: false, description: "1000게임 플레이" }
   ]);
+
+  useEffect(() => {
+    // 유저 스킬 정보 가져오기
+    console.log('스킬 정보 요청 중...', username);
+    fetch(`${import.meta.env.VITE_SERVER_URL}/api/user/skills?username=${username}`)
+    .then(res => {
+      console.log('API 응답 상태:', res.status);
+      return res.json();
+    })
+    .then(data => {
+      console.log('스킬 정보 응답 전체:', data);
+      console.log('data.ok:', data.ok);
+      console.log('data.skills:', data.skills);
+      console.log('data.skills 타입:', typeof data.skills);
+      console.log('data.skills 길이:', data.skills ? data.skills.length : 'undefined');
+      
+      if (data.ok && data.skills) {
+        setUserSkills(data.skills);
+        console.log('스킬 설정됨:', data.skills);
+      } else {
+        console.error('스킬 정보 로드 실패:', data.error || 'skills가 없음');
+      }
+    })
+    .catch(err => {
+      console.error('스킬 정보 로드 실패:', err);
+    })
+    .finally(() => {
+      setLoading(false);
+    });
+  }, [username]);
 
   const expToNextLevel = 2000;
   const expProgress = (userStats.exp / expToNextLevel) * 100;
@@ -221,6 +254,111 @@ export default function MyPage({ username }) {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* 스킬 섹션 */}
+      <div style={{
+        background: 'rgba(255,255,255,0.95)',
+        borderRadius: 24,
+        boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
+        padding: '2em',
+        backdropFilter: 'blur(10px)',
+        marginTop: '2em'
+      }}>
+        <h3 style={{
+          fontSize: '1.5em',
+          fontWeight: 600,
+          margin: '0 0 1.5em 0',
+          textAlign: 'center',
+          color: '#374151'
+        }}>
+          ⚡ 내 스킬
+        </h3>
+        
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '2em', color: '#6b7280' }}>
+            스킬 정보를 불러오는 중...
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '1em', color: '#6b7280', fontSize: '0.9em' }}>
+            디버그: 스킬 개수 {userSkills.length}개, 로딩: {loading.toString()}
+          </div>
+        )}
+        
+        {userSkills.length > 0 ? (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '1em'
+          }}>
+            {userSkills.map(skill => (
+              <div key={skill.id} style={{
+                background: `linear-gradient(135deg, ${skill.color}15 0%, ${skill.color}25 100%)`,
+                padding: '1.5em',
+                borderRadius: 16,
+                border: `2px solid ${skill.color}30`,
+                textAlign: 'center',
+                transition: 'all 0.3s ease',
+                position: 'relative',
+                overflow: 'hidden'
+              }}>
+                <div style={{
+                  fontSize: '2.5em',
+                  marginBottom: '0.5em',
+                  filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))'
+                }}>
+                  {skill.icon}
+                </div>
+                <div style={{
+                  fontSize: '1.1em',
+                  fontWeight: 600,
+                  color: '#374151',
+                  marginBottom: '0.5em'
+                }}>
+                  {skill.name}
+                </div>
+                <div style={{
+                  fontSize: '0.9em',
+                  color: '#6b7280',
+                  marginBottom: '0.5em'
+                }}>
+                  {skill.description}
+                </div>
+                <div style={{
+                  background: skill.color,
+                  color: 'white',
+                  padding: '0.3em 0.8em',
+                  borderRadius: 20,
+                  fontSize: '0.8em',
+                  fontWeight: 600,
+                  display: 'inline-block'
+                }}>
+                  {skill.multiplier}x 속도
+                </div>
+                {skill.usage_count > 0 && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '0.5em',
+                    right: '0.5em',
+                    background: 'rgba(0,0,0,0.7)',
+                    color: 'white',
+                    padding: '0.2em 0.5em',
+                    borderRadius: 10,
+                    fontSize: '0.7em',
+                    fontWeight: 600
+                  }}>
+                    {skill.usage_count}회 사용
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '2em', color: '#6b7280' }}>
+            아직 소유한 스킬이 없습니다.<br/>
+            상점에서 스킬을 구매해보세요!
+          </div>
+        )}
       </div>
     </div>
   );

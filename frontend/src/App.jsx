@@ -15,6 +15,12 @@ export default function App() {
     if (savedUsername) {
       setUsername(savedUsername);
       setIsLoggedIn(true);
+    } else {
+      // 더미 유저로 자동 로그인
+      const dummyUsername = "player1";
+      setUsername(dummyUsername);
+      setIsLoggedIn(true);
+      localStorage.setItem("airhockey_username", dummyUsername);
     }
   }, []);
 
@@ -75,7 +81,7 @@ export default function App() {
         </div>
         <Routes>
           <Route path="/" element={<MyPage username={username} />} />
-          <Route path="/game" element={<GameBoard />} />
+          <Route path="/game" element={<GameBoard username={username} />} />
           <Route path="/shop" element={<ShopPage />} />
           <Route path="/skin" element={<SkinPage />} />
         </Routes>

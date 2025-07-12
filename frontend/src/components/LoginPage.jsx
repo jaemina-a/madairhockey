@@ -8,7 +8,7 @@ export default function LoginPage({ onLogin }) {
     e.preventDefault();
     if (username.trim()) {
       setIsLoading(true);
-      // 로그인 처리 (실제로는 서버 인증이 필요하지만 여기서는 간단히 처리)
+      // 바로 로그인 처리 (더미 데이터 사용)
       setTimeout(() => {
         onLogin(username.trim());
         setIsLoading(false);

@@ -8,39 +8,24 @@ const W = 406, H = 700, PR = 15, BR = 12;
 const GOAL_WIDTH = 120;
 const GOAL_HEIGHT = 20;
 
-// 스킬 정보 정의
-const SKILLS = {
-  1: { name: "스킬 1", icon: "⚡", multiplier: "1.5x", color: "#6366f1" },
-  2: { name: "스킬 2", icon: "🔥", multiplier: "2.0x", color: "#f59e0b" },
-  3: { name: "스킬 3", icon: "💨", multiplier: "2.5x", color: "#10b981" },
-  4: { name: "스킬 4", icon: "🚀", multiplier: "3.0x", color: "#ef4444" }
-};
-
-export default function GameBoard() {
+export default function GameBoard({ username }) {
   const [state, setState] = useState(null);
   const [side, setSide] = useState(null);
-  const [skillMessage, setSkillMessage] = useState("");
   const room = "default";
   const socketRef = useRef(null);
 
   useEffect(() => {
     const socket = io(import.meta.env.VITE_SERVER_URL);
     socketRef.current = socket;
-    socket.emit("join", { room });
+    socket.emit("join", { room, username });
     socket.on("joined", data => setSide(data.side));
     socket.on("state", data => setState(data));
-    socket.on("skill_activated", data => {
-      const skillInfo = SKILLS[data.skill_number];
-      setSkillMessage(`${skillInfo.icon} ${skillInfo.name} 활성화! 공을 치면 속도가 ${skillInfo.multiplier} 증가합니다!`);
-      setTimeout(() => setSkillMessage(""), 3000);
-    });
     return () => {
       socket.off("joined");
       socket.off("state");
-      socket.off("skill_activated");
       socket.disconnect();
     };
-  }, []);
+  }, [username]);
 
   useEffect(() => {
     const key = e => {
@@ -50,19 +35,19 @@ export default function GameBoard() {
         if (e.key === "d") dx = +15;
         if (e.key === "w") dy = -15;
         if (e.key === "s") dy = +15;
-        if (e.key === "1") socketRef.current?.emit("activate_skill", { room, side, skill_number: 1 });
-        if (e.key === "2") socketRef.current?.emit("activate_skill", { room, side, skill_number: 2 });
-        if (e.key === "3") socketRef.current?.emit("activate_skill", { room, side, skill_number: 3 });
-        if (e.key === "4") socketRef.current?.emit("activate_skill", { room, side, skill_number: 4 });
+        if (e.key === "1") socketRef.current?.emit("activate_skill", { room, side, skill_id: 1 });
+        if (e.key === "2") socketRef.current?.emit("activate_skill", { room, side, skill_id: 2 });
+        if (e.key === "3") socketRef.current?.emit("activate_skill", { room, side, skill_id: 3 });
+        if (e.key === "4") socketRef.current?.emit("activate_skill", { room, side, skill_id: 4 });
       } else if (side === "right") {
         if (e.key === "ArrowLeft") dx = -15;
         if (e.key === "ArrowRight") dx = +15;
         if (e.key === "ArrowUp") dy = -15;
         if (e.key === "ArrowDown") dy = +15;
-        if (e.key === "1") socketRef.current?.emit("activate_skill", { room, side, skill_number: 1 });
-        if (e.key === "2") socketRef.current?.emit("activate_skill", { room, side, skill_number: 2 });
-        if (e.key === "3") socketRef.current?.emit("activate_skill", { room, side, skill_number: 3 });
-        if (e.key === "4") socketRef.current?.emit("activate_skill", { room, side, skill_number: 4 });
+        if (e.key === "1") socketRef.current?.emit("activate_skill", { room, side, skill_id: 1 });
+        if (e.key === "2") socketRef.current?.emit("activate_skill", { room, side, skill_id: 2 });
+        if (e.key === "3") socketRef.current?.emit("activate_skill", { room, side, skill_id: 3 });
+        if (e.key === "4") socketRef.current?.emit("activate_skill", { room, side, skill_id: 4 });
       }
       if ((dx !== 0 || dy !== 0) && side && socketRef.current) {
         socketRef.current.emit("paddle_move", { room, side, dx, dy });
@@ -72,9 +57,9 @@ export default function GameBoard() {
     return () => window.removeEventListener("keydown", key);
   }, [side]);
 
-  const handleSkillClick = (skillNumber) => {
+  const handleSkillClick = (skillId) => {
     if (side && socketRef.current) {
-      socketRef.current.emit("activate_skill", { room, side, skill_number: skillNumber });
+      socketRef.current.emit("activate_skill", { room, side, skill_id: skillId });
     }
   };
 
@@ -87,29 +72,13 @@ export default function GameBoard() {
   else if (side === null) sideLabel = '';
 
   const mySkill = side === 'left' ? skills.top : side === 'right' ? skills.bottom : null;
+  const myAvailableSkills = mySkill?.available || [];
 
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: '100vh', background: 'linear-gradient(135deg, #f8fafc 0%, #a7bfe8 100%)', padding: '2em 0'
     }}>
       <div style={{ fontWeight: 'bold', marginBottom: 12, fontSize: '1.1em', color: '#3b3b3b' }}>{sideLabel}</div>
-      
-      {/* 스킬 메시지 */}
-      {skillMessage && (
-        <div style={{
-          background: 'rgba(99,102,241,0.1)',
-          border: '2px solid #6366f1',
-          borderRadius: 12,
-          padding: '0.8em 1.5em',
-          marginBottom: '1em',
-          color: '#6366f1',
-          fontSize: '1em',
-          fontWeight: 600,
-          animation: 'fadeInOut 3s ease-in-out'
-        }}>
-          {skillMessage}
-        </div>
-      )}
 
       <div style={{
         width: W, height: H, background: 'linear-gradient(180deg, #e0e7ff 0%, #c7d2fe 100%)',
@@ -157,10 +126,20 @@ export default function GameBoard() {
           height: PR*2, 
           borderRadius: '50%',
           background: skills.top.active > 0 
-            ? `radial-gradient(circle at 30% 30%, ${SKILLS[skills.top.active].color} 70%, ${SKILLS[skills.top.active].color}dd 100%)` 
+            ? (() => {
+                const activeSkill = skills.top.available.find(s => s.id === skills.top.active);
+                return activeSkill 
+                  ? `radial-gradient(circle at 30% 30%, ${activeSkill.color} 70%, ${activeSkill.color}dd 100%)` 
+                  : 'radial-gradient(circle at 30% 30%, #6366f1 70%, #818cf8 100%)';
+              })()
             : 'radial-gradient(circle at 30% 30%, #6366f1 70%, #818cf8 100%)', 
           boxShadow: skills.top.active > 0 
-            ? `0 2px 8px ${SKILLS[skills.top.active].color}55, 0 0 20px ${SKILLS[skills.top.active].color}` 
+            ? (() => {
+                const activeSkill = skills.top.available.find(s => s.id === skills.top.active);
+                return activeSkill 
+                  ? `0 2px 8px ${activeSkill.color}55, 0 0 20px ${activeSkill.color}` 
+                  : '0 2px 8px #6366f155';
+              })()
             : '0 2px 8px #6366f155', 
           zIndex: 2,
           transition: 'all 0.3s ease',
@@ -176,10 +155,20 @@ export default function GameBoard() {
           height: PR*2, 
           borderRadius: '50%',
           background: skills.bottom.active > 0 
-            ? `radial-gradient(circle at 30% 30%, ${SKILLS[skills.bottom.active].color} 70%, ${SKILLS[skills.bottom.active].color}dd 100%)` 
+            ? (() => {
+                const activeSkill = skills.bottom.available.find(s => s.id === skills.bottom.active);
+                return activeSkill 
+                  ? `radial-gradient(circle at 30% 30%, ${activeSkill.color} 70%, ${activeSkill.color}dd 100%)` 
+                  : 'radial-gradient(circle at 30% 30%, #f59e42 70%, #fbbf24 100%)';
+              })()
             : 'radial-gradient(circle at 30% 30%, #f59e42 70%, #fbbf24 100%)', 
           boxShadow: skills.bottom.active > 0 
-            ? `0 2px 8px ${SKILLS[skills.bottom.active].color}55, 0 0 20px ${SKILLS[skills.bottom.active].color}` 
+            ? (() => {
+                const activeSkill = skills.bottom.available.find(s => s.id === skills.bottom.active);
+                return activeSkill 
+                  ? `0 2px 8px ${activeSkill.color}55, 0 0 20px ${activeSkill.color}` 
+                  : '0 2px 8px #f59e4255';
+              })()
             : '0 2px 8px #f59e4255', 
           zIndex: 2,
           transition: 'all 0.3s ease',
@@ -202,7 +191,7 @@ export default function GameBoard() {
       </div>
 
       {/* 스킬 버튼들 */}
-      {side && (
+      {side && myAvailableSkills.length > 0 && (
         <div style={{
           display: 'flex',
           gap: '0.8em',
@@ -210,38 +199,36 @@ export default function GameBoard() {
           flexWrap: 'wrap',
           justifyContent: 'center'
         }}>
-          {[1, 2, 3, 4].map(skillNumber => {
-            const skillInfo = SKILLS[skillNumber];
-            const isActive = mySkill?.active === skillNumber;
+          {myAvailableSkills.map(skill => {
+            const isActive = mySkill?.active === skill.id;
             
             return (
               <button
-                key={skillNumber}
-                onClick={() => handleSkillClick(skillNumber)}
+                key={skill.id}
+                onClick={() => handleSkillClick(skill.id)}
                 style={{
                   padding: '0.8em 1.2em',
                   fontSize: '1em',
                   fontWeight: 600,
-                  border: 'none',
                   borderRadius: 12,
                   background: isActive 
-                    ? `linear-gradient(135deg, ${skillInfo.color} 0%, ${skillInfo.color}dd 100%)` 
-                    : `linear-gradient(135deg, ${skillInfo.color}22 0%, ${skillInfo.color}44 100%)`,
-                  color: isActive ? 'white' : skillInfo.color,
+                    ? `linear-gradient(135deg, ${skill.color} 0%, ${skill.color}dd 100%)` 
+                    : `linear-gradient(135deg, ${skill.color}22 0%, ${skill.color}44 100%)`,
+                  color: isActive ? 'white' : skill.color,
                   cursor: 'pointer',
                   boxShadow: isActive 
-                    ? `0 4px 16px ${skillInfo.color}40` 
-                    : `0 2px 8px ${skillInfo.color}20`,
+                    ? `0 4px 16px ${skill.color}40` 
+                    : `0 2px 8px ${skill.color}20`,
                   transition: 'all 0.3s ease',
                   outline: 'none',
                   minWidth: 80,
-                  border: isActive ? `2px solid ${skillInfo.color}` : `2px solid ${skillInfo.color}22`,
+                  border: isActive ? `2px solid ${skill.color}` : `2px solid ${skill.color}22`,
                   position: 'relative',
                   overflow: 'hidden'
                 }}
               >
-                <div style={{ fontSize: '1.2em', marginBottom: '0.2em' }}>{skillInfo.icon}</div>
-                <div style={{ fontSize: '0.8em', fontWeight: 500 }}>{skillInfo.multiplier}</div>
+                <div style={{ fontSize: '1.2em', marginBottom: '0.2em' }}>{skill.icon}</div>
+                <div style={{ fontSize: '0.8em', fontWeight: 500 }}>{skill.multiplier}x</div>
                 {isActive && (
                   <div style={{
                     position: 'absolute',
@@ -249,7 +236,7 @@ export default function GameBoard() {
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    background: `linear-gradient(45deg, transparent 30%, ${skillInfo.color}22 50%, transparent 70%)`,
+                    background: `linear-gradient(45deg, transparent 30%, ${skill.color}22 50%, transparent 70%)`,
                     animation: 'shimmer 1.5s infinite'
                   }} />
                 )}
@@ -273,13 +260,6 @@ export default function GameBoard() {
       </div>
 
       <style>{`
-        @keyframes fadeInOut {
-          0% { opacity: 0; transform: translateY(-10px); }
-          10% { opacity: 1; transform: translateY(0); }
-          90% { opacity: 1; transform: translateY(0); }
-          100% { opacity: 0; transform: translateY(-10px); }
-        }
-        
         @keyframes shimmer {
           0% { transform: translateX(-100%); }
           100% { transform: translateX(100%); }
