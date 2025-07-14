@@ -3,7 +3,7 @@ const bcrypt = require('bcrypt');
 
 // 데이터베이스 연결 설정
 const dbConfig = {
-    host: process.env.DB_HOST || 'localhost',
+    host: process.env.DB_HOST || '13.61.196.86',
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'airhockey_db',

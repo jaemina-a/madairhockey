@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 3000;
 
 // 미들웨어 설정
 app.use(cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    origin: process.env.CORS_ORIGIN || 'http://13.61.196.86:5173',
     credentials: true
 }));
 app.use(express.json());
@@ -135,6 +135,32 @@ app.get('/api/auth/verify', authenticateToken, (req, res) => {
         valid: true, 
         user: req.user 
     });
+});
+
+// 회원가입 API (프론트엔드 호환용)
+app.post('/api/signup', async (req, res) => {
+    try {
+        const { username, password, email } = req.body;
+        // 입력 검증
+        if (!username || !password) {
+            return res.status(400).json({ error: 'Username and password are required' });
+        }
+        if (password.length < 6) {
+            return res.status(400).json({ error: 'Password must be at least 6 characters' });
+        }
+        // 유저 생성
+        const userId = await userService.createUser(username, password, email);
+        res.status(201).json({ 
+            message: 'User created successfully',
+            userId 
+        });
+    } catch (error) {
+        console.error('Signup error:', error);
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ error: 'Username already exists' });
+        }
+        res.status(500).json({ error: 'Internal server error' });
+    }
 });
 
 // 기본 라우트

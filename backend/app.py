@@ -1,5 +1,8 @@
 # backend/app.py
 import os
+print("DB_HOST:", os.getenv("DB_HOST"))
+print("DB_USER:", os.getenv("DB_USER"))
+print("DB_NAME:", os.getenv("DB_NAME"))
 from dotenv import load_dotenv
 load_dotenv()                         # .env 파일 읽기
 
@@ -67,8 +70,9 @@ def get_skills():
 if __name__ == "__main__":
     print("server run\n")
     # DB 초기화가 필요할 때만 아래 줄을 수동으로 실행하세요
-    # DB.init_db()
+    DB.init_db()
     bg_lock = get_bg_lock()
     with bg_lock:
         socketio.start_background_task(loop)
-    socketio.run(app, host="0.0.0.0", port=8000)    # Mac·Win 공통
+    port = int(os.getenv("PORT", 8000))
+    socketio.run(app, host="0.0.0.0", port=port)    # Mac·Win·AWS 공통
