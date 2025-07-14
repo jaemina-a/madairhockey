@@ -49,8 +49,11 @@ class Game:
         
         # 충돌 감지 개선: 거리만으로 판단하고 추가 조건 제거
         if distance <= self.PR + self.BR:
+        
             # 충돌 처리 - 패들 중심에서 공을 밀어냄
             if distance > 0:
+                print("bounce emit in game_logic top")
+                self.emit("bounce", {"side": "top"})
                 # 정규화된 방향 벡터
                 nx = dx / distance
                 ny = dy / distance
@@ -92,6 +95,7 @@ class Game:
         if distance <= self.PR + self.BR:
             # 충돌 처리 - 패들 중심에서 공을 밀어냄
             if distance > 0:
+                
                 # 정규화된 방향 벡터
                 nx = dx / distance
                 ny = dy / distance

@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { io } from "socket.io-client";
+import fry_pan from '../assets/fry_pan.mp3'
 
 // 세로형 에어하키 보드 크기
 const W = 406, H = 700, PR = 25, BR = 12;
+const fry_apn_audio = new Audio(fry_pan);
 
 // 골대 설정
 const GOAL_WIDTH = 120;
@@ -26,7 +28,6 @@ function throttle(func, limit) {
 export default function GameBoard() {
   const [searchParams] = useSearchParams();
   const username = searchParams.get('username') || 'player1';
-  
   const [state, setState] = useState(null);
   const [side, setSide] = useState(null);
   const [userSkills, setUserSkills] = useState([]);
@@ -98,6 +99,12 @@ export default function GameBoard() {
     socket.on("skill_activated", () => {
       console.log("skill_activated emit success");
       setSelectedSkillId(null);
+    });
+
+    socket.on("bounce", data => {
+      //나중에 data 받고
+      console.log("bounce emit success", data);
+      fry_apn_audio.play();
     });
 
     // 두 명 매칭 완료
