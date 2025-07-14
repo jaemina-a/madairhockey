@@ -51,7 +51,7 @@ export default function GameBoard() {
   useEffect(() => {
     const fetchUserSkills = async () => {
       try {
-        const response = await fetch(`${import.meta.env.VITE_SERVER_URL}/api/user/skills?username=${encodeURIComponent(username)}`);
+        const response = await fetch(`/api/user/skills?username=${encodeURIComponent(username)}`);
         const data = await response.json();
         if (data.ok) {
           setUserSkills(data.skills);
