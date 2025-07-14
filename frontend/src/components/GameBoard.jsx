@@ -59,6 +59,11 @@ export default function GameBoard() {
   useEffect(() => {
     const socket = io(import.meta.env.VITE_SERVER_URL);
     socketRef.current = socket;
+    socket.on("skill_activated", data => {
+      console.log("skill_activated emit success");
+      console.log(data);
+      setSelectedSkillId(null);
+    });
     socket.emit("join", { room, username });
     socket.on("joined", data => setSide(data.side));
     socket.on("state", data => {
