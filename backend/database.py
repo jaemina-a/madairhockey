@@ -103,19 +103,16 @@ def init_db():
             cur.execute("INSERT INTO user_skills(user_id, skill_id, unlocked) VALUES (%s, 1, TRUE), (%s, 2, TRUE)", (user_id, user_id))
             print(f"더미 유저 '{username}'을 생성하고 기본 스킬을 제공했습니다.")
     else:
-        # 기존 유저들에게 기본 스킬 제공
+        # 기존 유저들에게 기본 스킬 제공 (기존 데이터 삭제 후 다시 생성)
         cur.execute("SELECT id FROM users")
         existing_users = cur.fetchall()
         for user in existing_users:
             user_id = user[0]
-            # 이미 기본 스킬을 가지고 있는지 확인
-            cur.execute("SELECT COUNT(*) FROM user_skills WHERE user_id = %s AND skill_id IN (1, 2)", (user_id,))
-            skill_count = cur.fetchone()[0]
-            if skill_count == 0:
-                cur.execute("INSERT INTO user_skills(user_id, skill_id, unlocked) VALUES (%s, 1, TRUE), (%s, 2, TRUE)", (user_id, user_id))
-                print(f"유저 ID {user_id}에게 기본 스킬을 제공했습니다.")
-            else:
-                print(f"유저 ID {user_id}는 이미 기본 스킬을 가지고 있습니다.")
+            # 기존 스킬 데이터 삭제
+            cur.execute("DELETE FROM user_skills WHERE user_id = %s", (user_id,))
+            # 기본 스킬 1, 2번 제공
+            cur.execute("INSERT INTO user_skills(user_id, skill_id, unlocked) VALUES (%s, 1, TRUE), (%s, 2, TRUE)", (user_id, user_id))
+            print(f"유저 ID {user_id}에게 기본 스킬을 제공했습니다.")
     
     conn.commit(); cur.close(); conn.close()
 

@@ -11,8 +11,9 @@ class Game:
     GOAL_WIDTH = 121  # 골대 폭
     GOAL_HEIGHT = 20  # 골대 높이
 
-    def __init__(self, room):
+    def __init__(self, room, socketio=None):
         self.room = room
+        self.socketio = socketio
         self.bx, self.by = self.W//2, self.H//2
         self.vx, self.vy = self.SPD, self.SPD
         self.paddle = {
@@ -25,6 +26,11 @@ class Game:
         self.player_skills = {"top": [], "bottom": []}
         self.skill_cooldowns = {"top": {}, "bottom": {}}  # 스킬별 마지막 사용 시간
         self.base_speed = self.SPD
+
+    def emit(self, event, data):
+        """소켓 이벤트를 emit하는 헬퍼 메서드"""
+        if self.socketio:
+            self.socketio.emit(event, data, room=self.room)
 
     # 물리 한 프레임
     def step(self):
@@ -72,8 +78,10 @@ class Game:
                             self.vx *= multiplier
                             break
                     # 스킬 효과 적용 후 쿨타임 시작
+                    print("skill_activated emit in game_logic")
+                    self.emit("skill_activated", {"side": "top", "skill_id": self.active_skill["top"]})
                     self.apply_skill_effect("top")
-
+                    
         # 아래쪽 패들 충돌 (원형)
         bottom_paddle = self.paddle["bottom"]
         dx = self.bx - bottom_paddle["x"]
@@ -111,6 +119,8 @@ class Game:
                             self.vx *= multiplier
                             break
                     # 스킬 효과 적용 후 쿨타임 시작
+                    print("skill_activated emit in game_logic bottom")
+                    self.emit("skill_activated", {"side": "bottom", "skill_id": self.active_skill["bottom"]})
                     self.apply_skill_effect("bottom")
 
         # 골 체크 - 골대에 들어갔는지 확인

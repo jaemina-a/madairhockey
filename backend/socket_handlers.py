@@ -14,13 +14,14 @@ def register_socket_handlers(socketio):
     def join(data):
         room = data.get("room", "default")
         username = data.get("username")
+        print("join emit in server", room, username)
         join_room(room)
         sid = request.sid
 
         participants.setdefault(room, set()).add(sid)
-        games.setdefault(room, Game(room))
+        games.setdefault(room, Game(room, socketio))
 
-        num = len(participants[room])          # 플레이어 인원
+        num = len(participants[room])  # 현재 인원 수
         side = "left" if num == 1 else "right" if num == 2 else None
         if side is None:
             emit("joined", {"side": None, "error": "방이 가득 찼습니다."})
@@ -34,6 +35,10 @@ def register_socket_handlers(socketio):
         emit("joined", {"side": side})
         emit("state", games[room].out(), room=room)
         print("JOIN", room, side, "참가자수:", num)
+
+        # 2명이 모이면 game_ready 이벤트 emit
+        if num == 2:
+            socketio.emit("game_ready", {}, room=room)
 
     @socketio.on("paddle_move")
     def paddle_move(data):
@@ -74,9 +79,12 @@ def register_socket_handlers(socketio):
             if sid in sids:
                 sids.remove(sid)
                 print(f"DISCONNECT: {sid} from {room}")
-                if not sids:                  # 방에 아무도 없으면 삭제
+                if not sids:  # 방에 아무도 없으면 삭제
                     participants.pop(room, None)
                     games.pop(room, None)
+                else:
+                    # 남아있는 플레이어에게 알림
+                    socketio.emit("opponent_disconnected", {}, room=room)
                 break
 
 def get_games():

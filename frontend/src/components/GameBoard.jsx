@@ -33,6 +33,9 @@ export default function GameBoard() {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [localPaddlePosition, setLocalPaddlePosition] = useState(null);
   const [selectedSkillId, setSelectedSkillId] = useState(null);
+  const [gameReady, setGameReady] = useState(false);
+  const [status, setStatus] = useState('connecting'); // connecting | waiting | ready | disconnected
+  const sideRef = useRef(null);
   const room = "default";
   const socketRef = useRef(null);
   const gameBoardRef = useRef(null);
@@ -56,40 +59,65 @@ export default function GameBoard() {
     fetchUserSkills();
   }, [username]);
 
+  // 소켓 연결 - 컴포넌트 마운트 시 한 번만 실행
   useEffect(() => {
     const socket = io(import.meta.env.VITE_SERVER_URL);
     socketRef.current = socket;
-    socket.on("skill_activated", data => {
-      console.log("skill_activated emit success");
-      console.log(data);
-      setSelectedSkillId(null);
-    });
+
+    // 서버에 접속
     socket.emit("join", { room, username });
-    socket.on("joined", data => setSide(data.side));
+
+    // joined 이벤트
+    socket.on("joined", data => {
+      setSide(data.side);
+      sideRef.current = data.side;
+      setStatus('waiting');
+    });
+
+    // 게임 상태 업데이트
     socket.on("state", data => {
       setState(data);
-      // 서버 상태와 로컬 상태 동기화
-      if (side && data.paddles) {
-        const currentPaddle = side === 'left' ? data.paddles.top : data.paddles.bottom;
+
+      // 클라이언트 패들 위치 동기화
+      if (sideRef.current && data.paddles) {
+        const currentPaddle = sideRef.current === 'left' ? data.paddles.top : data.paddles.bottom;
         setLocalPaddlePosition(currentPaddle);
       }
-      
-      // 스킬 상태 동기화 - 스킬이 활성화되면 선택 상태 리셋
-      if (side && data.skills) {
-        const mySkillData = side === 'left' ? data.skills.top : data.skills.bottom;
-        // 스킬이 활성화되었고, 현재 선택된 스킬과 같으면 선택 상태 리셋
+
+      // 스킬 상태 동기화
+      if (sideRef.current && data.skills) {
+        const mySkillData = sideRef.current === 'left' ? data.skills.top : data.skills.bottom;
         if (mySkillData.active > 0 && selectedSkillId === mySkillData.active) {
-          console.log('스킬 발동됨, 선택 상태 리셋');
           setSelectedSkillId(null);
         }
       }
     });
+    
+    console.log("skill_activated socket.on success");
+    // 스킬 활성화 피드백
+    socket.on("skill_activated", () => {
+      console.log("skill_activated emit success");
+      setSelectedSkillId(null);
+    });
+
+    // 두 명 매칭 완료
+    socket.on("game_ready", () => {
+      setGameReady(true);
+      console.log("game_ready on success");
+      setStatus('ready');
+    });
+
+    // 상대방 이탈
+    socket.on("opponent_disconnected", () => {
+      alert("상대방이 나갔습니다. 게임이 종료됩니다.");
+      setStatus('disconnected');
+      window.location.href = "/";
+    });
+
     return () => {
-      socket.off("joined");
-      socket.off("state");
       socket.disconnect();
     };
-  }, [username, side]);
+  }, [username, room]);
 
   // 서버 업데이트 throttle 함수
   const throttledServerUpdate = useCallback(
@@ -103,6 +131,8 @@ export default function GameBoard() {
 
   // 마우스 이벤트 처리
   useEffect(() => {
+    if (!gameReady) return; // 게임 준비 전에는 리스너 등록 X
+
     const handleMouseMove = (e) => {
       if (!gameBoardRef.current || !side) return;
       
@@ -143,7 +173,7 @@ export default function GameBoard() {
         gameBoard.removeEventListener('mouseleave', handleMouseLeave);
       };
     }
-  }, [side, throttledServerUpdate]);
+  }, [side, throttledServerUpdate, gameReady]);
 
   // 스킬 토글 함수
   const toggleSkill = useCallback((skillId) => {
@@ -196,7 +226,9 @@ export default function GameBoard() {
     }
   }, [selectedSkillId, side, room]);
 
-  if (!state) return <p style={{textAlign:'center',marginTop:'3em',fontSize:'1.2em'}}>대전 상대를 기다리는 중…</p>;
+  if (!gameReady) {
+    return <p style={{textAlign:'center',marginTop:'3em',fontSize:'1.2em'}}>상대방을 기다리는 중…</p>;
+  }
   const { ball, paddles, scores, skills } = state;
 
   // 로컬 패들 위치와 서버 패들 위치 병합
