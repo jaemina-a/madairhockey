@@ -64,6 +64,8 @@ class Game:
                 self.vx = self.vx - 2 * dot_product * nx
                 self.vy = self.vy - 2 * dot_product * ny
                 
+                self.emit("bounce", {"side": "top"})
+                print("bounce emit in game_logic top")
                 # 선택된 스킬이 있으면 자동으로 활성화
                 if self.active_skill["top"] == 0:  # 이미 활성화된 스킬이 없을 때만
                     self.auto_activate_selected_skill("top")
@@ -104,7 +106,9 @@ class Game:
                 dot_product = self.vx * nx + self.vy * ny
                 self.vx = self.vx - 2 * dot_product * nx
                 self.vy = self.vy - 2 * dot_product * ny
-                
+
+                self.emit("bounce", {"side": "bottom"})
+                print("bounce emit in game_logic bottom")
                 # 선택된 스킬이 있으면 자동으로 활성화
                 if self.active_skill["bottom"] == 0:  # 이미 활성화된 스킬이 없을 때만
                     self.auto_activate_selected_skill("bottom")

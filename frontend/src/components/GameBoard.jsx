@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { io } from "socket.io-client";
+import fry_audio from "../assets/audio/audio_fry.mp3";
 
 // 세로형 에어하키 보드 크기
 const W = 406, H = 700, PR = 25, BR = 12;
@@ -8,6 +9,8 @@ const W = 406, H = 700, PR = 25, BR = 12;
 // 골대 설정
 const GOAL_WIDTH = 120;
 const GOAL_HEIGHT = 20;
+
+const audio_fry = new Audio(fry_audio);
 
 // Throttle 함수
 function throttle(func, limit) {
@@ -98,6 +101,11 @@ export default function GameBoard() {
     socket.on("skill_activated", () => {
       console.log("skill_activated emit success");
       setSelectedSkillId(null);
+    });
+
+    socket.on("bounce", () => {
+      console.log("bounce emit success");
+      audio_fry.play();
     });
 
     // 두 명 매칭 완료
