@@ -9,7 +9,7 @@ import mysql.connector
 
 # 분리된 모듈들 import
 from game_logic import Game
-from database import init_db, get_user_skills, create_user, verify_user, save_match
+from database import DB
 from socket_handlers import register_socket_handlers, get_games, get_bg_lock
 
 # ─────────── Flask + Socket.IO ───────────
@@ -42,7 +42,7 @@ def loop():
 def signup():
     data = request.get_json()
     try:
-        create_user(data["username"], data["password"])
+        DB.create_user(data["username"], data["password"])
         return jsonify(ok=True)
     except mysql.connector.errors.IntegrityError:
         return jsonify(ok=False, error="USERNAME_TAKEN"), 409
@@ -50,7 +50,7 @@ def signup():
 @app.post("/api/login")
 def login():
     data = request.get_json()
-    if verify_user(data["username"], data["password"]):
+    if DB.verify_user(data["username"], data["password"]):
         session["user"] = data["username"]
         return jsonify(ok=True)
     return jsonify(ok=False, error="INVALID_CRED"), 401
@@ -60,13 +60,14 @@ def get_skills():
     # 더미 유저로 자동 로그인 (세션 없이도 작동)
     username = request.args.get("username", "player1")
     
-    skills = get_user_skills(username)
+    skills = DB.get_user_skills(username)
     return jsonify(ok=True, skills=skills)
 
 # ─────────── 실행 ───────────
 if __name__ == "__main__":
     print("server run\n")
-    init_db()
+    # DB 초기화가 필요할 때만 아래 줄을 수동으로 실행하세요
+    # DB.init_db()
     bg_lock = get_bg_lock()
     with bg_lock:
         socketio.start_background_task(loop)
