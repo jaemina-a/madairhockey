@@ -2,7 +2,7 @@ from threading import Lock
 from flask_socketio import emit, join_room
 from flask import request
 from game_logic import Game
-from database import get_user_skills
+from database import DB
 
 # ─────────── 룸 상태 관리 ───────────
 games         = {}
@@ -29,7 +29,7 @@ def register_socket_handlers(socketio):
 
         # 유저의 스킬 정보 가져오기
         if username:
-            user_skills = get_user_skills(username)
+            user_skills = DB.get_user_skills(username)
             games[room].set_player_skills(side, user_skills)
 
         emit("joined", {"side": side})
