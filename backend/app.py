@@ -81,7 +81,7 @@ def get_room_list():
 if __name__ == "__main__":
     print("server run\n")
     # DB 초기화가 필요할 때만 아래 줄을 수동으로 실행하세요
-    # DB.init_db()
+    DB.init_db()
     bg_lock = get_bg_lock()
     with bg_lock:
         socketio.start_background_task(loop)
