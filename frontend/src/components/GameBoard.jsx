@@ -207,20 +207,52 @@ export default function GameBoard() {
     }
   }, [side, throttledServerUpdate, gameReady]);
 
+  // 3,4번 스킬 활성화 상태(로컬) 관리
+  const [localActiveSkill, setLocalActiveSkill] = useState(null); // {id, ts}
+
+  // 스킬 즉시 발동 함수 (3,4번)
+  const activateGoalSkill = useCallback((skillId) => {
+    if (!side || !socketRef.current) return;
+    // 서버에 즉시 발동 요청
+    socketRef.current.emit("set_selected_skill", {
+      room,
+      side,
+      skill_id: skillId
+    });
+    // 로컬에서도 즉시 골대 줄이기(시각 효과)
+    setLocalGoalSkill({ id: skillId, ts: Date.now() });
+    setLocalActiveSkill({ id: skillId, ts: Date.now() });
+  }, [side, room]);
+
+  // 로컬 골대 효과 상태
+  const [localGoalSkill, setLocalGoalSkill] = useState(null);
+
+  // 3,4번 스킬 활성화 표시 타이머 관리
+  useEffect(() => {
+    if (!localActiveSkill) return;
+    const now = Date.now();
+    const duration = localActiveSkill.id === 3 ? 5000 : 3000;
+    if (now - localActiveSkill.ts >= duration) {
+      setLocalActiveSkill(null);
+    } else {
+      const timeout = setTimeout(() => setLocalActiveSkill(null), duration - (now - localActiveSkill.ts));
+      return () => clearTimeout(timeout);
+    }
+  }, [localActiveSkill]);
+
   // 스킬 토글 함수
   const toggleSkill = useCallback((skillId) => {
-    console.log('스킬 토글:', skillId, '현재 활성화:', selectedSkillId);
-    
-    // 이미 활성화된 스킬을 다시 누르면 비활성화
+    if (skillId === 3 || skillId === 4) {
+      activateGoalSkill(skillId);
+      return;
+    }
+    // 기존 방식(1,2번)
     if (selectedSkillId === skillId) {
-      console.log('스킬 비활성화');
       setSelectedSkillId(null);
     } else {
-      // 다른 스킬 활성화 (기존 스킬은 자동으로 비활성화됨)
-      console.log('스킬 활성화');
       setSelectedSkillId(skillId);
     }
-  }, [selectedSkillId]);
+  }, [selectedSkillId, activateGoalSkill]);
 
   // 키보드 스킬 활성화/비활성화
   useEffect(() => {
@@ -240,16 +272,14 @@ export default function GameBoard() {
 
   // 선택된 스킬 정보를 서버에 전송
   useEffect(() => {
+    if (selectedSkillId === 3 || selectedSkillId === 4) return; // 3,4번은 위에서 즉시 처리
     if (side && socketRef.current && selectedSkillId !== null) {
-      console.log('서버에 스킬 활성화 전송:', selectedSkillId);
       socketRef.current.emit("set_selected_skill", { 
         room, 
         side, 
         skill_id: selectedSkillId 
       });
     } else if (side && socketRef.current && selectedSkillId === null) {
-      // 선택 해제 시
-      console.log('서버에 스킬 비활성화 전송');
       socketRef.current.emit("set_selected_skill", { 
         room, 
         side, 
@@ -258,7 +288,7 @@ export default function GameBoard() {
     }
   }, [selectedSkillId, side, room]);
 
-    // 🔥 핵심: 서버 위치와 로컬 위치를 비교해서 부드럽게 보정
+    // �� 핵심: 서버 위치와 로컬 위치를 비교해서 부드럽게 보정
   useEffect(() => {
     if (!serverPaddlePosition || !localPaddlePosition || !side) return;
     
@@ -297,15 +327,9 @@ export default function GameBoard() {
     const distance = Math.sqrt(dx * dx + dy * dy);
 
     if (distance > 2) {
-      const maxSpeed = MAX_SPEED; // 프레임당 최대 이동량
       let moveX = dx;
       let moveY = dy;
 
-      if (distance > maxSpeed) {
-        const ratio = maxSpeed / distance;
-        moveX *= ratio;
-        moveY *= ratio;
-      }
 
       const newX = localBallPosition.x + moveX;
       const newY = localBallPosition.y + moveY;
@@ -435,8 +459,8 @@ export default function GameBoard() {
 
   // 하키판 비율 및 최대 크기 계산
   const aspectRatio = 1 / 2;
-  const maxBoardHeight = typeof window !== 'undefined' ? window.innerHeight * 0.95 : 700;
-  const maxBoardWidth = typeof window !== 'undefined' ? window.innerWidth * 0.6 : 406;
+  const maxBoardHeight = typeof window !== 'undefined' ? window.innerHeight * 0.9 : 700;
+  const maxBoardWidth = typeof window !== 'undefined' ? window.innerWidth * 0.5 : 406;
   let boardHeight = Math.min(maxBoardHeight, maxBoardWidth / aspectRatio);
   let boardWidth = boardHeight * aspectRatio;
   if (boardWidth > maxBoardWidth) {
@@ -449,21 +473,36 @@ export default function GameBoard() {
   let BR_scaled = boardWidth / 16.92; // 406/16.92 ≈ 24, 기존 BR=12
   BR_scaled = BR_scaled * 1.5; // 퍽(공) 크기를 1.5배로 키움
 
+  // 내 골대만 로컬에서 즉시 줄이기(3,4번 누를 때)
+  let goalWidthRatioTop = state.goal_width_ratio?.top ?? 0.5;
+  let goalWidthRatioBottom = state.goal_width_ratio?.bottom ?? 0.5;
+  if (localGoalSkill && side) {
+    const now = Date.now();
+    if (side === 'left' && localGoalSkill.id === 3 && now - localGoalSkill.ts < 5000) goalWidthRatioTop = 0.5 * 0.7;
+    if (side === 'left' && localGoalSkill.id === 4 && now - localGoalSkill.ts < 3000) goalWidthRatioTop = 0.5 * 0.5;
+    if (side === 'right' && localGoalSkill.id === 3 && now - localGoalSkill.ts < 5000) goalWidthRatioBottom = 0.5 * 0.7;
+    if (side === 'right' && localGoalSkill.id === 4 && now - localGoalSkill.ts < 3000) goalWidthRatioBottom = 0.5 * 0.5;
+    // 효과 끝나면 리셋
+    if ((localGoalSkill.id === 3 && now - localGoalSkill.ts >= 5000) || (localGoalSkill.id === 4 && now - localGoalSkill.ts >= 3000)) setLocalGoalSkill(null);
+  }
+
   return (
-    <div style={{
-      position: 'fixed',
-      left: 0,
-      top: 0,
-      width: '100vw',
-      height: '100vh',
-      display: 'flex',
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'linear-gradient(135deg, #f8fafc 0%, #a7bfe8 100%)',
-      boxSizing: 'border-box',
-      padding: 0
-    }}>
+    <div
+      style={{
+        position: 'fixed',
+        left: 0,
+        top: 0,
+        width: '100vw',
+        height: '100vh',
+        display: 'flex',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: `url('/src/assets/gameboard_bg.png') center/cover no-repeat`,
+        boxSizing: 'border-box',
+        padding: 0
+      }}
+    >
       {/* 중앙 하키판 */}
       <div 
         ref={gameBoardRef}
@@ -485,28 +524,28 @@ export default function GameBoard() {
           cursor: side ? 'crosshair' : 'default',
         }}
       >
-        {/* 상단 골대 표시 (중앙 1/2) */}
+        {/* 상단 골대 표시 (top) */}
         <div style={{
           position: 'absolute',
-          left: boardWidth * 0.25,
+          left: boardWidth * (1 - goalWidthRatioTop) / 2,
           top: 0,
-          width: boardWidth * 0.5,
-          height: 18,
-          background: 'repeating-linear-gradient(90deg, #bae6fd 0 6px, #7dd3fc 6px 12px)',
-          borderBottom: '2px solid #38bdf8',
+          width: boardWidth * goalWidthRatioTop,
+          height: 10,
+          background: 'repeating-linear-gradient(135deg, #374151 0 6px, #e5e7eb 6px 12px)',
+          borderBottom: 'none',
           borderRadius: '0 0 12px 12px',
           zIndex: 2,
           imageRendering: 'pixelated',
         }} />
-        {/* 하단 골대 표시 (중앙 1/2) */}
+        {/* 하단 골대 표시 (bottom) */}
         <div style={{
           position: 'absolute',
-          left: boardWidth * 0.25,
-          top: boardHeight - 18,
-          width: boardWidth * 0.5,
-          height: 18,
-          background: 'repeating-linear-gradient(90deg, #fde68a 0 6px, #fbbf24 6px 12px)',
-          borderTop: '2px solid #f59e42',
+          left: boardWidth * (1 - goalWidthRatioBottom) / 2,
+          top: boardHeight - 10,
+          width: boardWidth * goalWidthRatioBottom,
+          height: 10,
+          background: 'repeating-linear-gradient(135deg, #374151 0 6px, #e5e7eb 6px 12px)',
+          borderTop: 'none',
           borderRadius: '12px 12px 0 0',
           zIndex: 2,
           imageRendering: 'pixelated',
@@ -515,22 +554,22 @@ export default function GameBoard() {
         <div style={{
           position: 'absolute',
           left: 0,
-          top: boardHeight/2-2,
+          top: boardHeight/2-2.5,
           width: boardWidth,
-          height: 4,
-          background: 'rgba(56,189,248,0.25)',
+          height: 5,
+          background: '#bae6fd', // 연파랑
           zIndex: 1,
-          boxShadow: '0 0 0 1px #0ea5e9, 0 0 0 2px #1e293b',
+          boxShadow: 'none',
           imageRendering: 'pixelated',
         }} />
         {/* 중앙 원 */}
         <div style={{
           position: 'absolute',
           left: boardWidth/2-0.1*boardWidth, top: boardHeight/2-0.1*boardWidth, width: 0.2*boardWidth, height: 0.2*boardWidth,
-          border: '3px solid #38bdf8',
+          border: '5px solid #bae6fd', // 중앙선과 굵기 맞춤
           borderRadius: '50%',
           zIndex: 1,
-          boxShadow: '0 0 0 2px #1e293b',
+          boxShadow: 'none',
           background: 'transparent',
           imageRendering: 'pixelated',
         }} />
@@ -601,7 +640,7 @@ export default function GameBoard() {
         )}
         {/* 점수 표시 */}
         <div style={{
-          position: 'absolute', left: 0, right: 0, top: boardHeight/2-40, textAlign: 'center', fontSize: '2.5em', fontWeight: 700, color: '#38bdf8', opacity: 0.18, zIndex: 0,
+          position: 'absolute', left: 0, right: 0, top: boardHeight/2-40, textAlign: 'center', fontSize: '2.5em', fontWeight: 700, color: '#2563eb', opacity: 0.22, zIndex: 0,
           textShadow: '0 0 2px #1e293b, 0 0 8px #0ea5e9',
           fontFamily: 'monospace',
         }}>{scores.top} : {scores.bottom}</div>
@@ -612,7 +651,7 @@ export default function GameBoard() {
         flexDirection: 'column',
         alignItems: 'flex-start',
         justifyContent: 'flex-start',
-        marginLeft: 32,
+        marginLeft: '6vw', // 기존 32에서 더 오른쪽으로
         minWidth: 220,
         maxWidth: 320,
         height: '90vh',
@@ -631,7 +670,7 @@ export default function GameBoard() {
         </div>
         <div style={{ fontWeight: 'bold', fontSize: '1.1em', color: '#3b3b3b', marginBottom: 8 }}>{sideLabel}</div>
         {/* 스킬 버튼들 */}
-        {side && myAvailableSkills.length > 0 && (
+        {side && (
           <div style={{
             display: 'flex',
             gap: '0.8em',
@@ -639,8 +678,16 @@ export default function GameBoard() {
             flexWrap: 'wrap',
             justifyContent: 'flex-start',
           }}>
-            {myAvailableSkills.map(skill => {
-              const isActive = mySkill?.active === skill.id;
+            {[1,2,3,4].map(id => {
+              const skill = myAvailableSkills.find(s => s.id === id) || {
+                id,
+                icon: id===1?"⚡":id===2?"🔥":id===3?"🛡️":"🧊",
+                color: id===1?"#6366f1":id===2?"#f59e0b":id===3?"#0ea5e9":"#1e293b",
+                multiplier: id===1?1.5:id===2?2.0:0,
+                cooldown: 3.0,
+                name: id===1?"스킬 1":id===2?"스킬 2":id===3?"골대 축소 1":"골대 축소 2"
+              };
+              const isActive = (mySkill?.active === skill.id) || (id >= 3 && localActiveSkill && localActiveSkill.id === id);
               const isSelected = selectedSkillId === skill.id;
               return (
                 <button
@@ -651,10 +698,10 @@ export default function GameBoard() {
                     fontWeight: 600,
                     borderRadius: 6,
                     background: isActive 
-                      ? `repeating-linear-gradient(135deg, ${skill.color} 0 4px, #1e293b 4px 8px)`
+                      ? skill.color
                       : isSelected
-                      ? `repeating-linear-gradient(135deg, ${skill.color}88 0 4px, #1e293b 4px 8px)`
-                      : `repeating-linear-gradient(135deg, #e0e7ef 0 4px, #1e293b 4px 8px)` ,
+                      ? `${skill.color}88`
+                      : `#e0e7ef`,
                     color: isActive ? '#fff' : skill.color,
                     cursor: 'pointer',
                     boxShadow: isActive 
@@ -675,9 +722,14 @@ export default function GameBoard() {
                     fontFamily: 'monospace',
                     imageRendering: 'pixelated',
                   }}
+                  onClick={() => toggleSkill(skill.id)}
                 >
                   <div style={{ fontSize: '1.2em', marginBottom: '0.2em' }}>{skill.icon}</div>
-                  <div style={{ fontSize: '0.8em', fontWeight: 500 }}>{skill.multiplier}x</div>
+                  {id<=2 ? (
+                    <div style={{ fontSize: '0.8em', fontWeight: 500 }}>{skill.multiplier}x</div>
+                  ) : (
+                    <div style={{ fontSize: '0.8em', fontWeight: 500 }}>골대 축소</div>
+                  )}
                   <div style={{ fontSize: '0.7em', color: '#666', marginTop: '0.1em' }}>
                     {skill.cooldown || 3.0}s
                   </div>
@@ -688,7 +740,7 @@ export default function GameBoard() {
                       left: 0,
                       right: 0,
                       bottom: 0,
-                      background: `repeating-linear-gradient(135deg, ${skill.color}44 0 4px, #1e293b44 4px 8px)` ,
+                      background: `${skill.color}44`,
                       animation: 'shimmer 1.5s infinite',
                       borderRadius: 6,
                       imageRendering: 'pixelated',
