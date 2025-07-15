@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import { io } from "socket.io-client";
+import socket from "../socket";
 import fry_audio from "../assets/audio/audio_fry.mp3";
 
 // 세로형 에어하키 보드 크기
@@ -67,7 +67,8 @@ export default function GameBoard() {
 
   // 소켓 연결 - 컴포넌트 마운트 시 한 번만 실행
   useEffect(() => {
-    const socket = io(import.meta.env.VITE_SOCKET_URL, { transports: ['websocket'] });socketRef.current = socket;
+    // const socket = io(import.meta.env.VITE_SOCKET_URL, { transports: ['websocket'] });
+    socketRef.current = socket;
 
     // 서버에 접속
     socket.emit("join", { room, username });

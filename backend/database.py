@@ -33,7 +33,8 @@ class Database:
         cur.execute("DROP TABLE IF EXISTS matches")
         cur.execute("DROP TABLE IF EXISTS users")
         cur.execute("DROP TABLE IF EXISTS skills")
-        # 테이블들 다시 생성
+        cur.execute("DROP TABLE IF EXISTS match_room")
+        # 테이블들 다시 생성    
         cur.execute("""
             CREATE TABLE users(
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -80,6 +81,7 @@ class Database:
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 is_playing BOOLEAN DEFAULT FALSE,
                 max_player INT DEFAULT 2,
+                current_player INT DEFAULT 0,
                 room_name VARCHAR(50) NOT NULL,
                 username VARCHAR(32) NOT NULL
             )
@@ -153,6 +155,15 @@ class Database:
         user_id = cur.lastrowid
         cur.execute("INSERT INTO user_skills(user_id, skill_id, unlocked) VALUES (%s, 1, TRUE), (%s, 2, TRUE)", (user_id, user_id))
         conn.commit(); cur.close(); conn.close()
+    def toggle_is_playing(self, room_name):
+        conn = self.pool.get_connection(); cur = conn.cursor()
+        cur.execute("UPDATE match_room SET is_playing = NOT is_playing WHERE room_name = %s", (room_name,))
+        conn.commit(); cur.close(); conn.close()
+
+    def update_current_player(self, room_name, current_player):
+        conn = self.pool.get_connection(); cur = conn.cursor()
+        cur.execute("UPDATE match_room SET current_player = %s WHERE room_name = %s", (current_player, room_name))
+        conn.commit(); cur.close(); conn.close()
 
     def verify_user(self, username, password):
         conn = self.pool.get_connection(); cur = conn.cursor(dictionary=True)
@@ -181,7 +192,6 @@ class Database:
         cur.execute("SELECT * FROM match_room")
         rooms = cur.fetchall()
         cur.close(); conn.close()
-        print(rooms)
         return rooms
 # 싱글턴 인스턴스
 DB = Database() 
