@@ -81,10 +81,10 @@ export default function GameBoard() {
       setState(data);
 
       // 클라이언트 패들 위치 동기화
-      if (sideRef.current && data.paddles) {
-        const currentPaddle = sideRef.current === 'left' ? data.paddles.top : data.paddles.bottom;
-        setLocalPaddlePosition(currentPaddle);
-      }
+      // if (sideRef.current && data.paddles) {
+      //   const currentPaddle = sideRef.current === 'left' ? data.paddles.top : data.paddles.bottom;
+      //   setLocalPaddlePosition(currentPaddle);
+      // }
 
       // 스킬 상태 동기화
       if (sideRef.current && data.skills) {
