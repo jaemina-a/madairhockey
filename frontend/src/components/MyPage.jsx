@@ -4,6 +4,8 @@ import btnGameStart from '../assets/btn_gamestart.png';
 import shopImg from '../assets/shop.png';
 import './MyPage.css';
 import { useState } from 'react';
+import socket from "../socket";
+import { useEffect } from 'react';
 
 export default function MyPage() {
   const navigate = useNavigate();
@@ -11,14 +13,22 @@ export default function MyPage() {
   const username = searchParams.get('username') || 'player1'; // 기본값 설정
 
   // UI 상태 관리 (로직 없음)
-  const [roomName, setRoomName] = useState("");
+  const [roomName, setRoomName] = useState("default");
   const [roomList, setRoomList] = useState([
-    { id: 1, name: "해적선의 비밀", status: "PLAYING", players: 8, max: 8 },
-    { id: 2, name: "초보 연습방", status: "WAITING", players: 2, max: 8 },
-    { id: 3, name: "고수만!", status: "WAITING", players: 1, max: 8 },
+    
   ]);
   const [selectedTab, setSelectedTab] = useState('list');
   const [selectedRoom, setSelectedRoom] = useState(null);
+
+  useEffect(()=>{
+    socket.on("room_updated", (roomList)=>{
+      setRoomList(roomList);
+    });
+    socket.on("room_create_failed", (error)=>{
+      console.log(error.error);
+    });
+  }, []);
+
 
   const updateRoomList = async ()=>{
     const response = await fetch(`${import.meta.env.VITE_SOCKET_URL}/api/get_room_list`, {
@@ -36,18 +46,19 @@ export default function MyPage() {
       console.error(data.error);
     }
   }
-  const handleGameStart = () => {
-    navigate(`/game?username=${encodeURIComponent(username)}`);
+  const handleGameStart = (roomName) => {
+    navigate(`/game?username=${encodeURIComponent(username)}&room_name=${encodeURIComponent(roomName)}`);
   };
+  const handleGameLoad = (roomName) => {
+    navigate(`/load_game?username=${encodeURIComponent(username)}&room_name=${encodeURIComponent(roomName)}`);
+  }
 
-  const makeRoom = async (roomName)=>{
-    const response = await fetch(`${import.meta.env.VITE_SOCKET_URL}/api/make_room`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ username: username, room_name: roomName }),
-    });
+  const makeRoom = (roomName)=>{
+    if(roomName == ""){
+      roomName = username + "의 방";
+    }
+    console.log("makeRoom in client, roomName : ", roomName);
+    socket.emit("room_create", {username: username, room_name: roomName});
   }
 
   return (
@@ -71,7 +82,7 @@ export default function MyPage() {
           }}
           onClick={() => {
             setSelectedTab('quick');
-            handleGameStart();
+            handleGameStart(roomName);
           }}
         >빠른시작</button>
       </div>
@@ -102,7 +113,7 @@ export default function MyPage() {
       }}>
         {roomList.map(room => (
           <div key={room.id} style={{
-            background: room.status === 'PLAYING' ? 'linear-gradient(90deg, #38bdf8 60%, #2563eb 100%)' : 'linear-gradient(90deg, #fbbf24 60%, #f59e42 100%)',
+            background: room.is_playing ? 'linear-gradient(90deg, #38bdf8 60%, #2563eb 100%)' : 'linear-gradient(90deg, #fbbf24 60%, #f59e42 100%)',
             borderRadius: 14,
             boxShadow: '0 2px 12px #0002',
             padding: '1.2em 1.5em',
@@ -119,16 +130,22 @@ export default function MyPage() {
                 <div style={{ fontWeight: 700, fontSize: 18, color: '#fff', textShadow: '1px 1px 0 #0008' }}>{room.room_name}</div>
                 <div style={{ fontSize: 14, color: '#e0e7ff', marginTop: 2 }}>상태: {room.is_playing ? "PLAYING" : "WAITING"}</div>
               </div>
-              <div style={{ fontWeight: 700, color: '#fff', fontSize: 16, background: 'rgba(0,0,0,0.18)', borderRadius: 8, padding: '0.3em 0.8em' }}>{room.players}/{room.max}</div>
+              <div style={{ fontWeight: 700, color: '#fff', fontSize: 16, background: 'rgba(0,0,0,0.18)', borderRadius: 8, padding: '0.3em 0.8em' }}>{room.current_player}/{room.max_player}</div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
               <button style={{
                 background: '#fff', color: '#2563eb', fontWeight: 700, border: 'none', borderRadius: 8,
                 padding: '0.5em 1.2em', fontSize: 15, cursor: 'pointer', boxShadow: '0 1px 4px #0001'
-              }}>입장</button>
+              }}
+              onClick={() => {
+                console.log(room.room_name);
+                handleGameLoad(room.room_name);
+              }}
+              disabled={room.is_playing}
+              >{room.is_playing ? "입장 불가" : "입장"}</button>
               <span style={{ color: '#fff', fontSize: 13, marginLeft: 8 }}>ID: {room.id}</span>
             </div>
-            {room.status === 'PLAYING' && (
+            {room.is_playing && (
               <div style={{
                 position: 'absolute', top: 10, right: 18, background: '#fff', color: '#38bdf8', fontWeight: 700,
                 borderRadius: 8, padding: '0.2em 0.8em', fontSize: 13, boxShadow: '0 1px 4px #0001'
