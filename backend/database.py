@@ -74,6 +74,16 @@ class Database:
                 right_score INT
             )
         """)
+        cur.execute("""
+            CREATE TABLE match_room(
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                is_playing BOOLEAN DEFAULT FALSE,
+                max_player INT DEFAULT 2,
+                room_name VARCHAR(50) NOT NULL,
+                username VARCHAR(32) NOT NULL
+            )
+        """)
         # 기본 스킬 데이터 삽입 (기존 데이터 삭제 후 다시 생성)
         cur.execute("DELETE FROM skills")
         default_skills = [
@@ -82,6 +92,7 @@ class Database:
             (3, "스킬 3", "💨", 2.5, "#10b981", "초고속 공격 스킬", "기본 제공", 3.0),
             (4, "스킬 4", "🚀", 3.0, "#ef4444", "최고속 공격 스킬", "기본 제공", 3.0)
         ]
+        
         cur.executemany("""
             INSERT INTO skills (id, name, icon, multiplier, color, description, unlock_condition, cooldown) 
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
@@ -156,5 +167,21 @@ class Database:
                     (g.score["left"], g.score["right"]))
         conn.commit(); cur.close(); conn.close()
 
+    def make_room(self, username, room_name):
+        conn = self.pool.get_connection(); cur = conn.cursor()
+        if(room_name == ""):
+            room_name = username + "의 방"
+        cur.execute("INSERT INTO match_room(username, room_name) VALUES (%s,%s)", (username, room_name))
+        print(f"방 생성: {username} - {room_name}")
+        conn.commit(); cur.close(); conn.close()
+
+    def get_room_list(self):
+        print("방 목록 조회")
+        conn = self.pool.get_connection(); cur = conn.cursor(dictionary=True)
+        cur.execute("SELECT * FROM match_room")
+        rooms = cur.fetchall()
+        cur.close(); conn.close()
+        print(rooms)
+        return rooms
 # 싱글턴 인스턴스
 DB = Database() 
