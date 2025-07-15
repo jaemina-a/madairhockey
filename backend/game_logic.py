@@ -6,11 +6,16 @@ class Game:
     W, H = 400, 700
     PR = 25     # 패들 반지름 (원형)
     BR = 12     # 공 반지름
-    SPD, TICK = 7, 1/60        # 픽셀/frame, 60 fps
+    SPD, TICK = 5, 1/80     # 픽셀/frame, 60 fps
     
     # 골대 설정
     GOAL_WIDTH = 121  # 골대 폭
     GOAL_HEIGHT = 20  # 골대 높이
+    GOAL_WIDTH_MIN = 60    # 최소 골대 폭(절대값)
+    GOAL_WIDTH_SKILL3 = 0.7 # 스킬3: 1/2
+    GOAL_WIDTH_SKILL4 = 0.5 # 스킬4: 1/4
+    GOAL_WIDTH_DURATION3 = 5.0 # 스킬3: 5초
+    GOAL_WIDTH_DURATION4 = 3.0 # 스킬4: 3초
 
     def __init__(self, room, socketio=None):
         self.room = room
@@ -27,6 +32,8 @@ class Game:
         self.player_skills = {"top": [], "bottom": []}
         self.skill_cooldowns = {"top": {}, "bottom": {}}  # 스킬별 마지막 사용 시간
         self.base_speed = self.SPD
+        self.base_goal_width = self.GOAL_WIDTH
+        self.goal_width_effect = {"top": None, "bottom": None} # 각 side별로 관리
 
     def emit(self, event, data):
         """소켓 이벤트를 emit하는 헬퍼 메서드"""
@@ -38,10 +45,21 @@ class Game:
         self.bx += self.vx
         self.by += self.vy
 
-        # 골대 영역 계산
-        goal_width = self.W // 2
-        goal_left = (self.W - goal_width) // 2
-        goal_right = (self.W + goal_width) // 2
+        # 골대 스킬 효과 적용 (side별)
+        now = time.time()
+        for side in ["top", "bottom"]:
+            eff = self.goal_width_effect[side]
+            if eff and now > eff["until"]:
+                self.goal_width_effect[side] = None
+        # 득점 체크용: 각 골대별로 적용
+        goal_width_top = int(self.W * (self.goal_width_effect["top"]["ratio"] if self.goal_width_effect["top"] else 0.5))
+        goal_width_top = max(goal_width_top, self.GOAL_WIDTH_MIN)
+        goal_left_top = (self.W - goal_width_top) // 2
+        goal_right_top = (self.W + goal_width_top) // 2
+        goal_width_bottom = int(self.W * (self.goal_width_effect["bottom"]["ratio"] if self.goal_width_effect["bottom"] else 0.5))
+        goal_width_bottom = max(goal_width_bottom, self.GOAL_WIDTH_MIN)
+        goal_left_bottom = (self.W - goal_width_bottom) // 2
+        goal_right_bottom = (self.W + goal_width_bottom) // 2
 
         # 공이 골대 영역(y) 안에 있는지
         in_top_goal_area = self.by - self.BR <= self.GOAL_HEIGHT
@@ -148,19 +166,19 @@ class Game:
         goal_right = (self.W + goal_width) // 2
 
         # 위쪽 골대 (bottom 플레이어가 득점)
-        if (self.by <= self.GOAL_HEIGHT - self.BR/2 and goal_left <= self.bx <= goal_right):
+        if (self.by <= self.GOAL_HEIGHT - self.BR/2 and goal_left_top <= self.bx <= goal_right_top):
             self.score["bottom"] += 1
             self.reset_ball(1)  # 중앙에서 시작
         # 아래쪽 골대 (top 플레이어가 득점)
-        elif (self.by >= self.H - self.GOAL_HEIGHT + self.BR/2 and goal_left <= self.bx <= goal_right):
+        elif (self.by >= self.H - self.GOAL_HEIGHT + self.BR/2 and goal_left_bottom <= self.bx <= goal_right_bottom):
             self.score["top"] += 1
             self.reset_ball(-1)  # 중앙에서 시작
         # 상단 벽 튕김 (골대 범위 밖)
-        elif self.by - self.BR <= 0 and not (goal_left <= self.bx <= goal_right and self.by - self.BR <= self.GOAL_HEIGHT):
+        elif self.by - self.BR <= 0 and not (goal_left_top <= self.bx <= goal_right_top and self.by - self.BR <= self.GOAL_HEIGHT):
             self.by = self.BR
             self.vy *= -1
         # 하단 벽 튕김 (골대 범위 밖)
-        elif self.by + self.BR >= self.H and not (goal_left <= self.bx <= goal_right and self.by + self.BR >= self.H - self.GOAL_HEIGHT):
+        elif self.by + self.BR >= self.H and not (goal_left_bottom <= self.bx <= goal_right_bottom and self.by + self.BR >= self.H - self.GOAL_HEIGHT):
             self.by = self.H - self.BR
             self.vy *= -1
 
@@ -256,6 +274,12 @@ class Game:
     def apply_skill_effect(self, side):
         """스킬 효과를 적용"""
         if self.active_skill[side] > 0:
+            skill_id = self.active_skill[side]
+            # 골대 축소 스킬(3,4)
+            if skill_id == 3:
+                self.goal_width_effect[side] = {"ratio": self.GOAL_WIDTH_SKILL3, "until": time.time() + self.GOAL_WIDTH_DURATION3}
+            elif skill_id == 4:
+                self.goal_width_effect[side] = {"ratio": self.GOAL_WIDTH_SKILL4, "until": time.time() + self.GOAL_WIDTH_DURATION4}
             # 스킬 비활성화
             self.active_skill[side] = 0
 
@@ -294,9 +318,13 @@ class Game:
             return converted
         
         return {
-            "ball":     {"x": self.bx, "y": self.by, "timestamp": time.time() * 1000}, #디버깅 코드: teimestamp 추가
+            "ball":     {"x": self.bx, "y": self.by, "timestamp": time.time() * 1000},
             "paddles":  self.paddle,
             "scores":   self.score,
+            "goal_width_ratio": {
+                "top": self.goal_width_effect["top"]["ratio"] if self.goal_width_effect["top"] else 0.5,
+                "bottom": self.goal_width_effect["bottom"]["ratio"] if self.goal_width_effect["bottom"] else 0.5
+            },
             "skills":   {
                 "top": {
                     "active": self.active_skill["top"], 
