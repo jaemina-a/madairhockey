@@ -11,7 +11,7 @@ export default function MyPage() {
   const username = searchParams.get('username') || 'player1'; // 기본값 설정
 
   // UI 상태 관리 (로직 없음)
-  const [roomName, setRoomName] = useState("");
+  const [roomName, setRoomName] = useState("default");
   const [roomList, setRoomList] = useState([
     { id: 1, name: "해적선의 비밀", status: "PLAYING", players: 8, max: 8 },
     { id: 2, name: "초보 연습방", status: "WAITING", players: 2, max: 8 },
@@ -36,9 +36,12 @@ export default function MyPage() {
       console.error(data.error);
     }
   }
-  const handleGameStart = () => {
-    navigate(`/game?username=${encodeURIComponent(username)}`);
+  const handleGameStart = (roomName) => {
+    navigate(`/game?username=${encodeURIComponent(username)}&room_name=${encodeURIComponent(roomName)}`);
   };
+  const handleGameLoad = (roomName) => {
+    navigate(`/load_game?username=${encodeURIComponent(username)}&room_name=${encodeURIComponent(roomName)}`);
+  }
 
   const makeRoom = async (roomName)=>{
     const response = await fetch(`${import.meta.env.VITE_SOCKET_URL}/api/make_room`, {
@@ -71,7 +74,7 @@ export default function MyPage() {
           }}
           onClick={() => {
             setSelectedTab('quick');
-            handleGameStart();
+            handleGameStart(roomName);
           }}
         >빠른시작</button>
       </div>
@@ -125,7 +128,12 @@ export default function MyPage() {
               <button style={{
                 background: '#fff', color: '#2563eb', fontWeight: 700, border: 'none', borderRadius: 8,
                 padding: '0.5em 1.2em', fontSize: 15, cursor: 'pointer', boxShadow: '0 1px 4px #0001'
-              }}>입장</button>
+              }}
+              onClick={() => {
+                console.log(room.room_name);
+                handleGameLoad(room.room_name);
+              }}
+              >입장</button>
               <span style={{ color: '#fff', fontSize: 13, marginLeft: 8 }}>ID: {room.id}</span>
             </div>
             {room.status === 'PLAYING' && (
