@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { io } from "socket.io-client";
 import fry_audio from "../assets/audio/audio_fry.mp3";
+import malletRedImg from '../assets/mallet_red.png';
+import puckImg from '../assets/puck.png';
 
 // 세로형 에어하키 보드 크기
 const W = 406, H = 700, PR = 25, BR = 12;
@@ -46,6 +48,7 @@ export default function GameBoard() {
   const lastServerUpdate = useRef(0);
   const [localBallPosition, setLocalBallPosition] = useState(null);
   const [serverBallPosition, setServerBallPosition] = useState(null);
+  const animationRef = useRef(); // 추가: 공 보간용 애니메이션 프레임 ref
 
   // 유저 스킬 가져오기
   useEffect(() => {
@@ -78,7 +81,7 @@ export default function GameBoard() {
       sideRef.current = data.side;
       setStatus('waiting');
 
-      // �� 핵심: 게임 시작할 때 로컬 위치 초기화
+      //    핵심: 게임 시작할 때 로컬 위치 초기화
       setLocalPaddlePosition(null);
       setServerPaddlePosition(null);
     });
@@ -273,7 +276,9 @@ export default function GameBoard() {
   }, [serverPaddlePosition, localPaddlePosition, side]);
 
   // 🔥 공 위치 보간: 서버 위치와 로컬 위치를 비교해서 부드럽게 보정
-  useEffect(() => {
+  // 기존 useEffect는 주석 처리
+  
+  /*useEffect(() => {
     if (!serverBallPosition) return;
     if (!localBallPosition) {
       // 최초에는 서버 위치로 맞춤
@@ -294,6 +299,41 @@ export default function GameBoard() {
       setLocalBallPosition(serverBallPosition);
     }
   }, [serverBallPosition, localBallPosition]);
+*/
+  // requestAnimationFrame 기반 공 위치 보간 useEffect 추가
+  useEffect(() => {
+    if (!serverBallPosition) return;
+    if (!localBallPosition) {
+      setLocalBallPosition(serverBallPosition);
+      return;
+    }
+    let stopped = false;
+    function animate() {
+      if (stopped) return;
+      setLocalBallPosition(prev => {
+        if (!prev) return serverBallPosition;
+        const dx = serverBallPosition.x - prev.x;
+        const dy = serverBallPosition.y - prev.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const correctionSpeed = 0.25;
+        if (distance > 0.5) {
+          return {
+            x: prev.x + dx * correctionSpeed,
+            y: prev.y + dy * correctionSpeed,
+          };
+        } else {
+          return serverBallPosition;
+        }
+      });
+      animationRef.current = requestAnimationFrame(animate);
+    }
+    animationRef.current = requestAnimationFrame(animate);
+    return () => {
+      stopped = true;
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+    };
+  }, [serverBallPosition]);
+
 
   if (!gameReady) {
     return <p style={{textAlign:'center',marginTop:'3em',fontSize:'1.2em'}}>상대방을 기다리는 중…</p>;
@@ -317,209 +357,255 @@ export default function GameBoard() {
   // 🔥 공 위치 보간 적용: localBallPosition이 있으면 그걸 사용
   const displayBall = localBallPosition || ball;
 
+  // 하키판 비율 및 최대 크기 계산
+  const aspectRatio = 1 / 2;
+  const maxBoardHeight = typeof window !== 'undefined' ? window.innerHeight * 0.95 : 700;
+  const maxBoardWidth = typeof window !== 'undefined' ? window.innerWidth * 0.6 : 406;
+  let boardHeight = Math.min(maxBoardHeight, maxBoardWidth / aspectRatio);
+  let boardWidth = boardHeight * aspectRatio;
+  if (boardWidth > maxBoardWidth) {
+    boardWidth = maxBoardWidth;
+    boardHeight = boardWidth / aspectRatio;
+  }
+
+  // 패들/공 크기도 비율에 맞게 조정
+  const PR_scaled = boardWidth / 8.12; // 406/8.12 ≈ 50, 기존 PR=25
+  let BR_scaled = boardWidth / 16.92; // 406/16.92 ≈ 24, 기존 BR=12
+  BR_scaled = BR_scaled * 1.5; // 퍽(공) 크기를 1.5배로 키움
+
   return (
     <div style={{
-      display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: '100vh', background: 'linear-gradient(135deg, #f8fafc 0%, #a7bfe8 100%)', padding: '2em 0'
+      position: 'fixed',
+      left: 0,
+      top: 0,
+      width: '100vw',
+      height: '100vh',
+      display: 'flex',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'linear-gradient(135deg, #f8fafc 0%, #a7bfe8 100%)',
+      boxSizing: 'border-box',
+      padding: 0
     }}>
-      {/* 유저 정보 표시 */}
-      <div style={{
-        position: 'absolute',
-        top: '20px',
-        left: '20px',
-        background: 'rgba(0, 0, 0, 0.7)',
-        color: 'white',
-        padding: '10px 15px',
-        borderRadius: '20px',
-        fontSize: '14px'
-      }}>
-        👤 {username}
-      </div>
-
-      <div style={{ fontWeight: 'bold', marginBottom: 12, fontSize: '1.1em', color: '#3b3b3b' }}>{sideLabel}</div>
-
+      {/* 중앙 하키판 */}
       <div 
         ref={gameBoardRef}
         style={{
-          width: W, height: H, background: 'linear-gradient(180deg, #e0e7ff 0%, #c7d2fe 100%)',
-          borderRadius: 32, boxShadow: '0 8px 32px rgba(80,100,180,0.15)', position: 'relative', overflow: 'hidden', border: '4px solid #6366f1', marginBottom: 24,
-          cursor: side ? 'crosshair' : 'default'
+          width: boardWidth,
+          height: boardHeight,
+          background: '#fff',
+          imageRendering: 'pixelated',
+          borderRadius: 24,
+          boxShadow: '0 8px 32px #0ea5e955',
+          position: 'relative',
+          overflow: 'hidden',
+          border: '6px solid #38bdf8',
+          margin: '0 0',
+          cursor: side ? 'crosshair' : 'default',
         }}
       >
-        {/* 중앙 라인 */}
+        {/* 중앙 가로선 */}
         <div style={{
-          position: 'absolute', left: W/2-2, top: 0, width: 4, height: H, background: 'rgba(99,102,241,0.12)', zIndex: 1
+          position: 'absolute',
+          left: 0,
+          top: boardHeight/2-2,
+          width: boardWidth,
+          height: 4,
+          background: 'rgba(56,189,248,0.25)',
+          zIndex: 1,
+          boxShadow: '0 0 0 1px #0ea5e9, 0 0 0 2px #1e293b',
+          imageRendering: 'pixelated',
         }} />
-        
-        {/* 위쪽 패들 (원형) */}
+        {/* 중앙 원 */}
         <div style={{
-          position: 'absolute', 
-          left: displayPaddles.top.x - PR, 
-          top: displayPaddles.top.y - PR,
-          width: PR*2, 
-          height: PR*2, 
+          position: 'absolute',
+          left: boardWidth/2-0.1*boardWidth, top: boardHeight/2-0.1*boardWidth, width: 0.2*boardWidth, height: 0.2*boardWidth,
+          border: '3px solid #38bdf8',
           borderRadius: '50%',
-          background: skills.top.active > 0 
-            ? (() => {
-                const activeSkill = skills.top.available.find(s => s.id === skills.top.active);
-                return activeSkill 
-                  ? `radial-gradient(circle at 30% 30%, ${activeSkill.color} 70%, ${activeSkill.color}dd 100%)` 
-                  : 'radial-gradient(circle at 30% 30%, #6366f1 70%, #818cf8 100%)';
-              })()
-            : 'radial-gradient(circle at 30% 30%, #6366f1 70%, #818cf8 100%)', 
-          boxShadow: skills.top.active > 0 
-            ? (() => {
-                const activeSkill = skills.top.available.find(s => s.id === skills.top.active);
-                return activeSkill 
-                  ? `0 2px 8px ${activeSkill.color}55, 0 0 20px ${activeSkill.color}` 
-                  : '0 2px 8px #6366f155';
-              })()
-            : '0 2px 8px #6366f155', 
-          zIndex: 2,
-          transition: side === 'left' ? 'none' : 'all 0.3s ease', // 내 패들은 즉시 반응
-          border: '2px solid rgba(255,255,255,0.3)'
+          zIndex: 1,
+          boxShadow: '0 0 0 2px #1e293b',
+          background: 'transparent',
+          imageRendering: 'pixelated',
         }} />
-        
-        {/* 아래쪽 패들 (원형) */}
-        <div style={{
-          position: 'absolute', 
-          left: displayPaddles.bottom.x - PR, 
-          top: displayPaddles.bottom.y - PR,
-          width: PR*2, 
-          height: PR*2, 
-          borderRadius: '50%',
-          background: skills.bottom.active > 0 
-            ? (() => {
-                const activeSkill = skills.bottom.available.find(s => s.id === skills.bottom.active);
-                return activeSkill 
-                  ? `radial-gradient(circle at 30% 30%, ${activeSkill.color} 70%, ${activeSkill.color}dd 100%)` 
-                  : 'radial-gradient(circle at 30% 30%, #f59e42 70%, #fbbf24 100%)';
-              })()
-            : 'radial-gradient(circle at 30% 30%, #f59e42 70%, #fbbf24 100%)', 
-          boxShadow: skills.bottom.active > 0 
-            ? (() => {
-                const activeSkill = skills.bottom.available.find(s => s.id === skills.bottom.active);
-                return activeSkill 
-                  ? `0 2px 8px ${activeSkill.color}55, 0 0 20px ${activeSkill.color}` 
-                  : '0 2px 8px #f59e4255';
-              })()
-            : '0 2px 8px #f59e4255', 
-          zIndex: 2,
-          transition: side === 'right' ? 'none' : 'all 0.3s ease', // 내 패들은 즉시 반응
-          border: '2px solid rgba(255,255,255,0.3)'
-        }} />
-
-        {/* 공 */}
-        <div style={{
-          position: 'absolute', left: displayBall.x - BR, top: displayBall.y - BR,
-          width: BR*2, height: BR*2, borderRadius: '50%', background: 'radial-gradient(circle at 30% 30%, #f87171 70%, #991b1b 100%)', boxShadow: '0 2px 12px #991b1b33', zIndex: 3
-        }} />
+        {/* 위쪽 패들 (이미지) */}
+        <img
+          src={malletRedImg}
+          alt="red mallet"
+          style={{
+            position: 'absolute',
+            left: displayPaddles.top.x / W * boardWidth - PR_scaled,
+            top: displayPaddles.top.y / H * boardHeight - PR_scaled,
+            width: PR_scaled * 2,
+            height: PR_scaled * 2,
+            zIndex: 2,
+            pointerEvents: 'none',
+            userSelect: 'none',
+          }}
+        />
+        {/* 아래쪽 패들 (이미지) */}
+        <img
+          src={malletRedImg}
+          alt="red mallet"
+          style={{
+            position: 'absolute',
+            left: displayPaddles.bottom.x / W * boardWidth - PR_scaled,
+            top: displayPaddles.bottom.y / H * boardHeight - PR_scaled,
+            width: PR_scaled * 2,
+            height: PR_scaled * 2,
+            zIndex: 2,
+            pointerEvents: 'none',
+            userSelect: 'none',
+          }}
+        />
+        {/* 공 (이미지) */}
+        <img
+          src={puckImg}
+          alt="puck"
+          style={{
+            position: 'absolute',
+            left: displayBall.x / W * boardWidth - BR_scaled,
+            top: displayBall.y / H * boardHeight - BR_scaled,
+            width: BR_scaled * 2,
+            height: BR_scaled * 2,
+            zIndex: 3,
+            pointerEvents: 'none',
+            userSelect: 'none',
+          }}
+        />
         {/* 점수 표시 */}
         <div style={{
-          position: 'absolute', left: 0, right: 0, top: H/2-40, textAlign: 'center', fontSize: '2.5em', fontWeight: 700, color: '#6366f1', opacity: 0.15, zIndex: 0
+          position: 'absolute', left: 0, right: 0, top: boardHeight/2-40, textAlign: 'center', fontSize: '2.5em', fontWeight: 700, color: '#38bdf8', opacity: 0.18, zIndex: 0,
+          textShadow: '0 0 2px #1e293b, 0 0 8px #0ea5e9',
+          fontFamily: 'monospace',
         }}>{scores.top} : {scores.bottom}</div>
       </div>
-
-      {/* 스킬 버튼들 */}
-      {side && myAvailableSkills.length > 0 && (
-        <div style={{
-          display: 'flex',
-          gap: '0.8em',
-          marginBottom: '1em',
-          flexWrap: 'wrap',
-          justifyContent: 'center'
-        }}>
-          {myAvailableSkills.map(skill => {
-            const isActive = mySkill?.active === skill.id;
-            const isSelected = selectedSkillId === skill.id;
-            
-            return (
-              <button
-                key={skill.id}
-                style={{
-                  padding: '0.8em 1.2em',
-                  fontSize: '1em',
-                  fontWeight: 600,
-                  borderRadius: 12,
-                  background: isActive 
-                    ? `linear-gradient(135deg, ${skill.color} 0%, ${skill.color}dd 100%)` 
-                    : isSelected
-                    ? `linear-gradient(135deg, ${skill.color}44 0%, ${skill.color}66 100%)`
-                    : `linear-gradient(135deg, ${skill.color}22 0%, ${skill.color}44 100%)`,
-                  color: isActive ? 'white' : skill.color,
-                  cursor: 'default', // 마우스 클릭 비활성화
-                  boxShadow: isActive 
-                    ? `0 4px 16px ${skill.color}40` 
-                    : isSelected
-                    ? `0 4px 16px ${skill.color}30`
-                    : `0 2px 8px ${skill.color}20`,
-                  transition: 'all 0.3s ease',
-                  outline: 'none',
-                  minWidth: 80,
-                  border: isActive 
-                    ? `2px solid ${skill.color}` 
-                    : isSelected 
-                    ? `2px solid ${skill.color}` 
-                    : `2px solid ${skill.color}22`,
-                  position: 'relative',
-                  overflow: 'hidden',
-                }}
-              >
-                <div style={{ fontSize: '1.2em', marginBottom: '0.2em' }}>{skill.icon}</div>
-                <div style={{ fontSize: '0.8em', fontWeight: 500 }}>{skill.multiplier}x</div>
-                <div style={{ fontSize: '0.7em', color: '#666', marginTop: '0.1em' }}>
-                  {skill.cooldown || 3.0}s
-                </div>
-                
-                {/* 활성화 상태 표시 */}
-                {isActive && (
-                  <div style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    background: `linear-gradient(45deg, transparent 30%, ${skill.color}22 50%, transparent 70%)`,
-                    animation: 'shimmer 1.5s infinite',
-                    borderRadius: 12
-                  }} />
-                )}
-                
-                {/* 활성화된 스킬 표시 */}
-                {isSelected && !isActive && (
-                  <div style={{
-                    position: 'absolute',
-                    top: 4,
-                    right: 8,
-                    fontSize: '0.7em',
-                    color: skill.color,
-                    fontWeight: 700,
-                    background: 'rgba(255,255,255,0.9)',
-                    padding: '2px 6px',
-                    borderRadius: 8,
-                    border: `1px solid ${skill.color}`
-                  }}>
-                    활성화됨
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
+      {/* 오른쪽 사이드바 */}
       <div style={{
-        background: 'rgba(99,102,241,0.08)',
-        borderRadius: 12,
-        padding: '1em 2em',
-        color: '#444',
-        fontSize: '1em',
-        boxShadow: '0 2px 8px #6366f122',
-        marginBottom: 8
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'flex-start',
+        justifyContent: 'flex-start',
+        marginLeft: 32,
+        minWidth: 220,
+        maxWidth: 320,
+        height: '90vh',
+        gap: 16,
       }}>
-        <b>조작법</b> <br/>
-        패들 조작: <b>마우스</b> <br/>
-        스킬 활성화/비활성화: <b>1-4</b> 키 (토글) <br/>
-        스킬 발동: 공과 패들 충돌 시 자동 적용
+        {/* 유저 정보 표시 */}
+        <div style={{
+          background: 'rgba(0, 0, 0, 0.7)',
+          color: 'white',
+          padding: '10px 15px',
+          borderRadius: '20px',
+          fontSize: '14px',
+          marginBottom: 8,
+        }}>
+          👤 {username}
+        </div>
+        <div style={{ fontWeight: 'bold', fontSize: '1.1em', color: '#3b3b3b', marginBottom: 8 }}>{sideLabel}</div>
+        {/* 스킬 버튼들 */}
+        {side && myAvailableSkills.length > 0 && (
+          <div style={{
+            display: 'flex',
+            gap: '0.8em',
+            marginBottom: '1em',
+            flexWrap: 'wrap',
+            justifyContent: 'flex-start',
+          }}>
+            {myAvailableSkills.map(skill => {
+              const isActive = mySkill?.active === skill.id;
+              const isSelected = selectedSkillId === skill.id;
+              return (
+                <button
+                  key={skill.id}
+                  style={{
+                    padding: '0.7em 1.1em',
+                    fontSize: '1em',
+                    fontWeight: 600,
+                    borderRadius: 6,
+                    background: isActive 
+                      ? `repeating-linear-gradient(135deg, ${skill.color} 0 4px, #1e293b 4px 8px)`
+                      : isSelected
+                      ? `repeating-linear-gradient(135deg, ${skill.color}88 0 4px, #1e293b 4px 8px)`
+                      : `repeating-linear-gradient(135deg, #e0e7ef 0 4px, #1e293b 4px 8px)` ,
+                    color: isActive ? '#fff' : skill.color,
+                    cursor: 'pointer',
+                    boxShadow: isActive 
+                      ? `0 2px 8px ${skill.color}55, 0 0 8px #1e293b` 
+                      : isSelected
+                      ? `0 2px 8px ${skill.color}33`
+                      : `0 2px 8px #1e293b22`,
+                    transition: 'all 0.2s',
+                    outline: 'none',
+                    minWidth: 70,
+                    border: isActive 
+                      ? `2px solid #fff` 
+                      : isSelected 
+                      ? `2px solid ${skill.color}` 
+                      : `2px solid #1e293b`,
+                    position: 'relative',
+                    overflow: 'hidden',
+                    fontFamily: 'monospace',
+                    imageRendering: 'pixelated',
+                  }}
+                >
+                  <div style={{ fontSize: '1.2em', marginBottom: '0.2em' }}>{skill.icon}</div>
+                  <div style={{ fontSize: '0.8em', fontWeight: 500 }}>{skill.multiplier}x</div>
+                  <div style={{ fontSize: '0.7em', color: '#666', marginTop: '0.1em' }}>
+                    {skill.cooldown || 3.0}s
+                  </div>
+                  {isActive && (
+                    <div style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      background: `repeating-linear-gradient(135deg, ${skill.color}44 0 4px, #1e293b44 4px 8px)` ,
+                      animation: 'shimmer 1.5s infinite',
+                      borderRadius: 6,
+                      imageRendering: 'pixelated',
+                    }} />
+                  )}
+                  {isSelected && !isActive && (
+                    <div style={{
+                      position: 'absolute',
+                      top: 4,
+                      right: 8,
+                      fontSize: '0.7em',
+                      color: skill.color,
+                      fontWeight: 700,
+                      background: '#fff',
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      border: `1px solid ${skill.color}`,
+                      fontFamily: 'monospace',
+                      imageRendering: 'pixelated',
+                    }}>
+                      활성화됨
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {/* 설명 */}
+        <div style={{
+          background: 'rgba(99,102,241,0.08)',
+          borderRadius: 12,
+          padding: '1em 2em',
+          color: '#444',
+          fontSize: '1em',
+          boxShadow: '0 2px 8px #6366f122',
+          marginBottom: 8,
+        }}>
+          <b>조작법</b> <br/>
+          패들 조작: <b>마우스</b> <br/>
+          스킬 활성화/비활성화: <b>1-4</b> 키 (토글) <br/>
+          스킬 발동: 공과 패들 충돌 시 자동 적용
+        </div>
       </div>
 
       <style>{`
