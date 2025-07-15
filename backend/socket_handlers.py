@@ -1,5 +1,4 @@
 from threading import Lock
-from turtle import left
 from flask_socketio import emit, join_room
 from flask import request
 from game_logic import Game
