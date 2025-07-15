@@ -5,7 +5,7 @@ class Game:
     W, H = 400, 700
     PR = 25     # 패들 반지름 (원형)
     BR = 12     # 공 반지름
-    SPD, TICK = 7, 1/60         # 픽셀/frame, 60 fps
+    SPD, TICK = 7, 1/60        # 픽셀/frame, 60 fps
     
     # 골대 설정
     GOAL_WIDTH = 121  # 골대 폭

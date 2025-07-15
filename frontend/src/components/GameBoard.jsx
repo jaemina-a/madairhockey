@@ -64,8 +64,7 @@ export default function GameBoard() {
 
   // 소켓 연결 - 컴포넌트 마운트 시 한 번만 실행
   useEffect(() => {
-    const socket = io(import.meta.env.VITE_SERVER_URL);
-    socketRef.current = socket;
+    const socket = io(import.meta.env.VITE_SOCKET_URL, { transports: ['websocket'] });socketRef.current = socket;
 
     // 서버에 접속
     socket.emit("join", { room, username });
