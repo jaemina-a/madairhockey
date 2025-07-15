@@ -12,7 +12,7 @@ export default function MyPage() {
 
   // UI 상태 관리 (로직 없음)
   const [roomName, setRoomName] = useState("");
-  const [roomList] = useState([
+  const [roomList, setRoomList] = useState([
     { id: 1, name: "해적선의 비밀", status: "PLAYING", players: 8, max: 8 },
     { id: 2, name: "초보 연습방", status: "WAITING", players: 2, max: 8 },
     { id: 3, name: "고수만!", status: "WAITING", players: 1, max: 8 },
@@ -20,9 +20,35 @@ export default function MyPage() {
   const [selectedTab, setSelectedTab] = useState('list');
   const [selectedRoom, setSelectedRoom] = useState(null);
 
+  const updateRoomList = async ()=>{
+    const response = await fetch(`${import.meta.env.VITE_SOCKET_URL}/api/get_room_list`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    const data = await response.json();
+    console.log(data);
+    if(data.ok){
+      console.log(data.rooms);
+      setRoomList(data.rooms);
+    }else{
+      console.error(data.error);
+    }
+  }
   const handleGameStart = () => {
     navigate(`/game?username=${encodeURIComponent(username)}`);
   };
+
+  const makeRoom = async (roomName)=>{
+    const response = await fetch(`${import.meta.env.VITE_SOCKET_URL}/api/make_room`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ username: username, room_name: roomName }),
+    });
+  }
 
   return (
     <div style={{
@@ -48,35 +74,17 @@ export default function MyPage() {
             handleGameStart();
           }}
         >빠른시작</button>
-        <button
-          style={{
-            background: selectedTab === 'crazy' ? 'linear-gradient(180deg, #a78bfa 0%, #6366f1 100%)' : '#a78bfa',
-            color: '#fff', fontWeight: 700, fontSize: 20, border: 'none', borderRadius: 12,
-            boxShadow: '0 2px 8px #0003', padding: '0.7em 2.2em', cursor: 'pointer',
-            outline: selectedTab === 'crazy' ? '3px solid #6366f1' : 'none',
-            opacity: selectedTab === 'crazy' ? 1 : 0.7
-          }}
-          onClick={() => setSelectedTab('crazy')}
-        >크아짱</button>
-        <button
-          style={{
-            background: selectedTab === 'list' ? 'linear-gradient(180deg, #38bdf8 0%, #2563eb 100%)' : '#38bdf8',
-            color: '#fff', fontWeight: 700, fontSize: 20, border: 'none', borderRadius: 12,
-            boxShadow: '0 2px 8px #0003', padding: '0.7em 2.2em', cursor: 'pointer',
-            outline: selectedTab === 'list' ? '3px solid #2563eb' : 'none',
-            opacity: selectedTab === 'list' ? 1 : 0.7
-          }}
-          onClick={() => setSelectedTab('list')}
-        >방리스트</button>
       </div>
 
       {/* 하위 버튼/탭 */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 18 }}>
-        <button style={subBtnStyle}>방만들기</button>
-        <button style={subBtnStyle}>대기방입장</button>
-        <button style={{ ...subBtnStyle, background: '#38bdf8', color: '#fff' }}>?</button>
-        <button style={subBtnStyle}>모든방보기</button>
-        <button style={subBtnStyle}>혼자놀기</button>
+        <input type="text" value={roomName} onChange={(e) => setRoomName(e.target.value)} />
+        <button 
+          style={subBtnStyle}
+          onClick={() => {makeRoom(roomName)}}>
+            방만들기
+        </button>
+        <button style={subBtnStyle} onClick={updateRoomList}>방 업데이트</button>
       </div>
 
       {/* 방 리스트 카드 영역 */}
@@ -108,8 +116,8 @@ export default function MyPage() {
                 🏴‍☠️
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, fontSize: 18, color: '#fff', textShadow: '1px 1px 0 #0008' }}>{room.name}</div>
-                <div style={{ fontSize: 14, color: '#e0e7ff', marginTop: 2 }}>상태: {room.status}</div>
+                <div style={{ fontWeight: 700, fontSize: 18, color: '#fff', textShadow: '1px 1px 0 #0008' }}>{room.room_name}</div>
+                <div style={{ fontSize: 14, color: '#e0e7ff', marginTop: 2 }}>상태: {room.is_playing ? "PLAYING" : "WAITING"}</div>
               </div>
               <div style={{ fontWeight: 700, color: '#fff', fontSize: 16, background: 'rgba(0,0,0,0.18)', borderRadius: 8, padding: '0.3em 0.8em' }}>{room.players}/{room.max}</div>
             </div>

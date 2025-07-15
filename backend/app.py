@@ -63,6 +63,20 @@ def get_skills():
     skills = DB.get_user_skills(username)
     return jsonify(ok=True, skills=skills)
 
+@app.post("/api/make_room")
+def make_room():
+    data = request.get_json()
+    DB.make_room(data["username"], data["room_name"])
+    socketio.emit("room_created", data["room_name"], broadcast=True)
+    return jsonify(ok=True)
+
+@app.post("/api/get_room_list")
+def get_room_list():
+    rooms = DB.get_room_list()
+    print("방 목록 조회 2 =============")
+    print(rooms)
+    return jsonify(ok=True, rooms=rooms)
+
 # ─────────── 실행 ───────────
 if __name__ == "__main__":
     print("server run\n")
