@@ -34,7 +34,8 @@ export default function GameBoard() {
   const [side, setSide] = useState(null);
   const [userSkills, setUserSkills] = useState([]);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const [localPaddlePosition, setLocalPaddlePosition] = useState(null);
+  const [localPaddlePosition, setLocalPaddlePosition] = useState(null);  // 내 패들 위치 (즉시 반영용)
+  const [serverPaddlePosition, setServerPaddlePosition] = useState(null);  // 서버에서 온 패들 위치
   const [selectedSkillId, setSelectedSkillId] = useState(null);
   const [gameReady, setGameReady] = useState(false);
   const [status, setStatus] = useState('connecting'); // connecting | waiting | ready | disconnected
@@ -43,12 +44,14 @@ export default function GameBoard() {
   const socketRef = useRef(null);
   const gameBoardRef = useRef(null);
   const lastServerUpdate = useRef(0);
+  const [localBallPosition, setLocalBallPosition] = useState(null);
+  const [serverBallPosition, setServerBallPosition] = useState(null);
 
   // 유저 스킬 가져오기
   useEffect(() => {
     const fetchUserSkills = async () => {
       try {
-        const response = await fetch(`${import.meta.env.VITE_SERVER_URL}/api/user/skills?username=${encodeURIComponent(username)}`);
+        const response = await fetch(`/api/user/skills?username=${encodeURIComponent(username)}`);
         const data = await response.json();
         if (data.ok) {
           setUserSkills(data.skills);
@@ -74,6 +77,10 @@ export default function GameBoard() {
       setSide(data.side);
       sideRef.current = data.side;
       setStatus('waiting');
+
+      // �� 핵심: 게임 시작할 때 로컬 위치 초기화
+      setLocalPaddlePosition(null);
+      setServerPaddlePosition(null);
     });
 
     // 게임 상태 업데이트
@@ -85,6 +92,11 @@ export default function GameBoard() {
       //   const currentPaddle = sideRef.current === 'left' ? data.paddles.top : data.paddles.bottom;
       //   setLocalPaddlePosition(currentPaddle);
       // }
+      //핵심: 서버에서 온 패들 위치를 별도로 저장
+      if (side && data.paddles) {
+        const serverPos = side === 'left' ? data.paddles.top : data.paddles.bottom;
+        setServerPaddlePosition(serverPos);
+      }
 
       // 스킬 상태 동기화
       if (sideRef.current && data.skills) {
@@ -92,6 +104,10 @@ export default function GameBoard() {
         if (mySkillData.active > 0 && selectedSkillId === mySkillData.active) {
           setSelectedSkillId(null);
         }
+      }
+      // 🔥 공 위치 보간용: 서버에서 온 공 위치 별도 저장
+      if (data.ball) {
+        setServerBallPosition(data.ball);
       }
     });
     
@@ -151,7 +167,7 @@ export default function GameBoard() {
       const gameX = Math.max(PR, Math.min(W - PR, x));
       const gameY = Math.max(PR, Math.min(H - PR, y));
       
-      setMousePosition({ x: gameX, y: gameY });
+      //setMousePosition({ x: gameX, y: gameY });
       
       // 로컬 상태 즉시 업데이트 (즉시 반응)
       setLocalPaddlePosition({ x: gameX, y: gameY });
@@ -233,6 +249,52 @@ export default function GameBoard() {
     }
   }, [selectedSkillId, side, room]);
 
+    // 🔥 핵심: 서버 위치와 로컬 위치를 비교해서 부드럽게 보정
+  useEffect(() => {
+    if (!serverPaddlePosition || !localPaddlePosition || !side) return;
+    
+    // 두 위치의 차이 계산
+    const dx = serverPaddlePosition.x - localPaddlePosition.x;
+    const dy = serverPaddlePosition.y - localPaddlePosition.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    // 차이가 2픽셀 이상이면 보정
+    if (distance > 2) {
+      // 부드럽게 보정 (lerp: linear interpolation)
+      const correctionSpeed = 0.2; // 보정 속도 (0.1~0.3 정도가 좋음)
+      const newX = localPaddlePosition.x + dx * correctionSpeed;
+      const newY = localPaddlePosition.y + dy * correctionSpeed;
+      
+      setLocalPaddlePosition({ x: newX, y: newY });
+    } else {
+      // 거의 같으면 서버 위치로 정확히 맞춤
+      setLocalPaddlePosition(serverPaddlePosition);
+    }
+  }, [serverPaddlePosition, localPaddlePosition, side]);
+
+  // 🔥 공 위치 보간: 서버 위치와 로컬 위치를 비교해서 부드럽게 보정
+  useEffect(() => {
+    if (!serverBallPosition) return;
+    if (!localBallPosition) {
+      // 최초에는 서버 위치로 맞춤
+      setLocalBallPosition(serverBallPosition);
+      return;
+    }
+    // 두 위치의 차이 계산
+    const dx = serverBallPosition.x - localBallPosition.x;
+    const dy = serverBallPosition.y - localBallPosition.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    if (distance > 1) {
+      // 부드럽게 보정 (lerp)
+      const correctionSpeed = 0.25; // 공은 paddle보다 약간 빠르게 보정
+      const newX = localBallPosition.x + dx * correctionSpeed;
+      const newY = localBallPosition.y + dy * correctionSpeed;
+      setLocalBallPosition({ x: newX, y: newY });
+    } else {
+      setLocalBallPosition(serverBallPosition);
+    }
+  }, [serverBallPosition, localBallPosition]);
+
   if (!gameReady) {
     return <p style={{textAlign:'center',marginTop:'3em',fontSize:'1.2em'}}>상대방을 기다리는 중…</p>;
   }
@@ -251,6 +313,9 @@ export default function GameBoard() {
 
   const mySkill = side === 'left' ? skills.top : side === 'right' ? skills.bottom : null;
   const myAvailableSkills = mySkill?.available || [];
+
+  // 🔥 공 위치 보간 적용: localBallPosition이 있으면 그걸 사용
+  const displayBall = localBallPosition || ball;
 
   return (
     <div style={{
@@ -345,7 +410,7 @@ export default function GameBoard() {
 
         {/* 공 */}
         <div style={{
-          position: 'absolute', left: ball.x - BR, top: ball.y - BR,
+          position: 'absolute', left: displayBall.x - BR, top: displayBall.y - BR,
           width: BR*2, height: BR*2, borderRadius: '50%', background: 'radial-gradient(circle at 30% 30%, #f87171 70%, #991b1b 100%)', boxShadow: '0 2px 12px #991b1b33', zIndex: 3
         }} />
         {/* 점수 표시 */}
