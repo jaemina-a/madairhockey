@@ -49,6 +49,11 @@ export default function GameBoard() {
   const [localBallPosition, setLocalBallPosition] = useState(null);
   const [serverBallPosition, setServerBallPosition] = useState(null);
   const animationRef = useRef(); // 추가: 공 보간용 애니메이션 프레임 ref
+  const targetBallPositionRef = useRef(null); // rAF 보간용 목표점
+  const MAX_SPEED = 10;
+  const [goalAnim, setGoalAnim] = useState(false); // 득점 애니메이션 상태
+  const [goalAnimPos, setGoalAnimPos] = useState(null); // 득점 애니메이션용 위치
+  const prevScores = useRef(null); // 이전 점수 저장
 
   // 유저 스킬 가져오기
   useEffect(() => {
@@ -174,6 +179,7 @@ export default function GameBoard() {
       
       // 로컬 상태 즉시 업데이트 (즉시 반응)
       setLocalPaddlePosition({ x: gameX, y: gameY });
+      setLocalBallPosition(null);
       
       // 서버에 위치 전송 (throttle 적용)
       throttledServerUpdate(gameX, gameY);
@@ -278,7 +284,7 @@ export default function GameBoard() {
   // 🔥 공 위치 보간: 서버 위치와 로컬 위치를 비교해서 부드럽게 보정
   // 기존 useEffect는 주석 처리
   
-  /*useEffect(() => {
+  useEffect(() => {
     if (!serverBallPosition) return;
     if (!localBallPosition) {
       // 최초에는 서버 위치로 맞춤
@@ -289,19 +295,29 @@ export default function GameBoard() {
     const dx = serverBallPosition.x - localBallPosition.x;
     const dy = serverBallPosition.y - localBallPosition.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
-    if (distance > 1) {
-      // 부드럽게 보정 (lerp)
-      const correctionSpeed = 0.25; // 공은 paddle보다 약간 빠르게 보정
-      const newX = localBallPosition.x + dx * correctionSpeed;
-      const newY = localBallPosition.y + dy * correctionSpeed;
+
+    if (distance > 2) {
+      const maxSpeed = MAX_SPEED; // 프레임당 최대 이동량
+      let moveX = dx;
+      let moveY = dy;
+
+      if (distance > maxSpeed) {
+        const ratio = maxSpeed / distance;
+        moveX *= ratio;
+        moveY *= ratio;
+      }
+
+      const newX = localBallPosition.x + moveX;
+      const newY = localBallPosition.y + moveY;
       setLocalBallPosition({ x: newX, y: newY });
     } else {
       setLocalBallPosition(serverBallPosition);
     }
+
   }, [serverBallPosition, localBallPosition]);
-*/
+
   // requestAnimationFrame 기반 공 위치 보간 useEffect 추가
-  useEffect(() => {
+  /*useEffect(() => {
     if (!serverBallPosition) return;
     if (!localBallPosition) {
       setLocalBallPosition(serverBallPosition);
@@ -333,6 +349,66 @@ export default function GameBoard() {
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
   }, [serverBallPosition]);
+*/
+/*
+  useEffect(() => {
+    if (!serverBallPosition) return;
+    if (!serverBallPosition.timestamp) {
+      console.warn("서버에서 timestamp가 안 왔어요!");
+      return;
+    }
+
+    let stopped = false;
+    function animate() {
+      if (stopped) return;
+
+      setLocalBallPosition(prev => {
+        if (!prev) return serverBallPosition;
+
+        const now = Date.now();  // 현재 시간(ms)
+        const elapsed = now - serverBallPosition.timestamp;  // 공이 서버에서 보낸 후 지난 시간
+        const dx = serverBallPosition.x - prev.x;
+        const dy = serverBallPosition.y - prev.y;
+        const t = Math.min(elapsed / 100, 1);  // 최대 100ms 기준으로 보간 (너무 튀지 않게)
+
+        return {
+          x: prev.x + dx * t,
+          y: prev.y + dy * t,
+        };
+      });
+
+      animationRef.current = requestAnimationFrame(animate);
+    }
+
+    animationRef.current = requestAnimationFrame(animate);
+    return () => {
+      stopped = true;
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+    };
+  }, [serverBallPosition]);
+*/
+
+  // 점수 변화(득점) 감지 → 애니메이션 트리거
+  useEffect(() => {
+    if (!state || !state.scores) return;
+    if (!prevScores.current) {
+      prevScores.current = { ...state.scores };
+      return;
+    }
+    if (
+      state.scores.top !== prevScores.current.top ||
+      state.scores.bottom !== prevScores.current.bottom
+    ) {
+      // 득점 직전 공 위치 저장
+      setGoalAnimPos(localBallPosition || serverBallPosition || displayBall);
+      setGoalAnim(true);
+      setTimeout(() => {
+        setGoalAnim(false);
+        setGoalAnimPos(null);
+      }, 500);
+    }
+    prevScores.current = { ...state.scores };
+  }, [state && state.scores && state.scores.top, state && state.scores && state.scores.bottom]);
 
 
   if (!gameReady) {
@@ -394,7 +470,11 @@ export default function GameBoard() {
         style={{
           width: boardWidth,
           height: boardHeight,
-          background: '#fff',
+          background: `
+            repeating-linear-gradient(0deg, #e0e7ef 0 2px, transparent 2px 20px),
+            repeating-linear-gradient(90deg, #e0e7ef 0 2px, transparent 2px 20px),
+            #fff
+          `,
           imageRendering: 'pixelated',
           borderRadius: 24,
           boxShadow: '0 8px 32px #0ea5e955',
@@ -405,6 +485,32 @@ export default function GameBoard() {
           cursor: side ? 'crosshair' : 'default',
         }}
       >
+        {/* 상단 골대 표시 (중앙 1/2) */}
+        <div style={{
+          position: 'absolute',
+          left: boardWidth * 0.25,
+          top: 0,
+          width: boardWidth * 0.5,
+          height: 18,
+          background: 'repeating-linear-gradient(90deg, #bae6fd 0 6px, #7dd3fc 6px 12px)',
+          borderBottom: '2px solid #38bdf8',
+          borderRadius: '0 0 12px 12px',
+          zIndex: 2,
+          imageRendering: 'pixelated',
+        }} />
+        {/* 하단 골대 표시 (중앙 1/2) */}
+        <div style={{
+          position: 'absolute',
+          left: boardWidth * 0.25,
+          top: boardHeight - 18,
+          width: boardWidth * 0.5,
+          height: 18,
+          background: 'repeating-linear-gradient(90deg, #fde68a 0 6px, #fbbf24 6px 12px)',
+          borderTop: '2px solid #f59e42',
+          borderRadius: '12px 12px 0 0',
+          zIndex: 2,
+          imageRendering: 'pixelated',
+        }} />
         {/* 중앙 가로선 */}
         <div style={{
           position: 'absolute',
@@ -459,20 +565,40 @@ export default function GameBoard() {
           }}
         />
         {/* 공 (이미지) */}
-        <img
-          src={puckImg}
-          alt="puck"
-          style={{
-            position: 'absolute',
-            left: displayBall.x / W * boardWidth - BR_scaled,
-            top: displayBall.y / H * boardHeight - BR_scaled,
-            width: BR_scaled * 2,
-            height: BR_scaled * 2,
-            zIndex: 3,
-            pointerEvents: 'none',
-            userSelect: 'none',
-          }}
-        />
+        {!goalAnim && (
+          <img
+            src={puckImg}
+            alt="puck"
+            style={{
+              position: 'absolute',
+              left: displayBall.x / W * boardWidth - BR_scaled,
+              top: displayBall.y / H * boardHeight - BR_scaled,
+              width: BR_scaled * 2,
+              height: BR_scaled * 2,
+              zIndex: 3,
+              pointerEvents: 'none',
+              userSelect: 'none',
+            }}
+          />
+        )}
+        {/* 득점 애니메이션용 가짜 공 */}
+        {goalAnim && goalAnimPos && (
+          <img
+            src={puckImg}
+            alt="goal-puck"
+            className="goal-puck-anim"
+            style={{
+              position: 'absolute',
+              left: goalAnimPos.x / W * boardWidth - BR_scaled,
+              top: goalAnimPos.y / H * boardHeight - BR_scaled,
+              width: BR_scaled * 2,
+              height: BR_scaled * 2,
+              zIndex: 4,
+              pointerEvents: 'none',
+              userSelect: 'none',
+            }}
+          />
+        )}
         {/* 점수 표시 */}
         <div style={{
           position: 'absolute', left: 0, right: 0, top: boardHeight/2-40, textAlign: 'center', fontSize: '2.5em', fontWeight: 700, color: '#38bdf8', opacity: 0.18, zIndex: 0,
@@ -612,6 +738,13 @@ export default function GameBoard() {
         @keyframes shimmer {
           0% { transform: translateX(-100%); }
           100% { transform: translateX(100%); }
+        }
+        .goal-puck-anim {
+          animation: fadeShrink 0.5s forwards;
+        }
+        @keyframes fadeShrink {
+          0% { opacity: 1; transform: scale(1); }
+          100% { opacity: 0; transform: scale(0.3); }
         }
       `}</style>
 

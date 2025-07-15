@@ -75,7 +75,7 @@ class Database:
             )
         """)
         cur.execute("""
-            CREATE TABLE match_room(
+            CREATE TABLE IF NOT EXISTS match_room(
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 is_playing BOOLEAN DEFAULT FALSE,

@@ -1,5 +1,6 @@
 import random
 import time
+import math
 
 class Game:
     W, H = 400, 700
@@ -37,9 +38,23 @@ class Game:
         self.bx += self.vx
         self.by += self.vy
 
-        # 좌우 벽 튕김
-        if self.bx - self.BR <= 0 or self.bx + self.BR >= self.W:
-            self.vx *= -1
+        # 골대 영역 계산
+        goal_width = self.W // 2
+        goal_left = (self.W - goal_width) // 2
+        goal_right = (self.W + goal_width) // 2
+
+        # 공이 골대 영역(y) 안에 있는지
+        in_top_goal_area = self.by - self.BR <= self.GOAL_HEIGHT
+        in_bottom_goal_area = self.by + self.BR >= self.H - self.GOAL_HEIGHT
+
+        # 좌우 벽 튕김 (골대 영역(y)에서는 튕기지 않음)
+        if not (in_top_goal_area or in_bottom_goal_area):
+            if self.bx - self.BR <= 0:
+                self.bx = self.BR
+                self.vx *= -1
+            elif self.bx + self.BR >= self.W:
+                self.bx = self.W - self.BR
+                self.vx *= -1
 
         # 위쪽 패들 충돌 (원형)
         top_paddle = self.paddle["top"]
@@ -128,27 +143,52 @@ class Game:
                     self.apply_skill_effect("bottom")
 
         # 골 체크 - 골대에 들어갔는지 확인
-        goal_center_x = self.W // 2
-        
+        goal_width = self.W // 2  # 골대 폭을 전체의 1/2로 설정
+        goal_left = (self.W - goal_width) // 2
+        goal_right = (self.W + goal_width) // 2
+
         # 위쪽 골대 (bottom 플레이어가 득점)
-        if (self.by - self.BR <= self.GOAL_HEIGHT and 
-            goal_center_x - self.GOAL_WIDTH//2 <= self.bx <= goal_center_x + self.GOAL_WIDTH//2):
+        if (self.by <= self.GOAL_HEIGHT - self.BR/2 and goal_left <= self.bx <= goal_right):
             self.score["bottom"] += 1
             self.reset_ball(1)  # 중앙에서 시작
         # 아래쪽 골대 (top 플레이어가 득점)
-        elif (self.by + self.BR >= self.H - self.GOAL_HEIGHT and 
-              goal_center_x - self.GOAL_WIDTH//2 <= self.bx <= goal_center_x + self.GOAL_WIDTH//2):
+        elif (self.by >= self.H - self.GOAL_HEIGHT + self.BR/2 and goal_left <= self.bx <= goal_right):
             self.score["top"] += 1
             self.reset_ball(-1)  # 중앙에서 시작
-        # 상하단 벽에 닿으면 공 리셋 (골대 밖)
-        elif self.by < 0 or self.by > self.H:
-            self.reset_ball(1 if self.by < 0 else -1)
+        # 상단 벽 튕김 (골대 범위 밖)
+        elif self.by - self.BR <= 0 and not (goal_left <= self.bx <= goal_right and self.by - self.BR <= self.GOAL_HEIGHT):
+            self.by = self.BR
+            self.vy *= -1
+        # 하단 벽 튕김 (골대 범위 밖)
+        elif self.by + self.BR >= self.H and not (goal_left <= self.bx <= goal_right and self.by + self.BR >= self.H - self.GOAL_HEIGHT):
+            self.by = self.H - self.BR
+            self.vy *= -1
 
     def reset_ball(self, direction):
-        """일반적인 공 리셋 (중앙에서 시작)"""
-        self.bx, self.by = self.W//2, self.H//2
-        self.vy = direction*self.SPD
-        self.vx = random.choice([-self.SPD, self.SPD])
+        """골이 들어간 후 중앙에서 1초 대기 후 발사"""
+        self.bx, self.by = self.W // 2, self.H // 2
+        self.vx, self.vy = 0, 0  # 정지 상태
+
+        if self.socketio:
+            # 상태를 즉시 전송 (공은 정지한 채 중앙에 있음)
+            self.emit("state", self.out())
+
+            # 1초 후에 방향 설정 및 상태 전송
+            def resume_ball():
+                time.sleep(1.0)  # 1초 대기
+
+                angle = random.uniform(-0.4, 0.4)  # 살짝 좌우 편차
+                base_angle = -1 if direction < 0 else 1  # 위 또는 아래
+                speed = self.SPD
+                self.vx = speed * math.sin(angle)
+                self.vy = speed * base_angle * math.cos(angle)
+
+                # 방향 설정 이후 상태 다시 전송
+                self.emit("state", self.out())
+
+            self.socketio.start_background_task(resume_ball)
+
+
 
     def move_paddle(self, side, dx, dy):
         if side == "left": side = "top"
@@ -254,7 +294,7 @@ class Game:
             return converted
         
         return {
-            "ball":     {"x": self.bx, "y": self.by},
+            "ball":     {"x": self.bx, "y": self.by, "timestamp": time.time() * 1000}, #디버깅 코드: teimestamp 추가
             "paddles":  self.paddle,
             "scores":   self.score,
             "skills":   {
