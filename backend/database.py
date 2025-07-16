@@ -114,16 +114,16 @@ class Database:
                 pw_hash = generate_password_hash(password)
                 cur.execute("INSERT INTO users(username, pw_hash) VALUES (%s,%s)", (username, pw_hash))
                 user_id = cur.lastrowid
-                cur.execute("INSERT INTO user_skills(user_id, skill_id, unlocked) VALUES (%s, 1, TRUE), (%s, 2, TRUE)", (user_id, user_id))
-                print(f"더미 유저 '{username}'을 생성하고 기본 스킬을 제공했습니다.")
+                cur.execute("INSERT INTO user_skills(user_id, skill_id, unlocked) VALUES (%s, 1, TRUE), (%s, 2, TRUE), (%s, 3, TRUE), (%s, 4, TRUE)", (user_id, user_id, user_id, user_id))
+                print(f"더미 유저 '{username}'을 생성하고 모든 스킬을 제공했습니다.")
         else:
             cur.execute("SELECT id FROM users")
             existing_users = cur.fetchall()
             for user in existing_users:
                 user_id = user[0]
                 cur.execute("DELETE FROM user_skills WHERE user_id = %s", (user_id,))
-                cur.execute("INSERT INTO user_skills(user_id, skill_id, unlocked) VALUES (%s, 1, TRUE), (%s, 2, TRUE)", (user_id, user_id))
-                print(f"유저 ID {user_id}에게 기본 스킬을 제공했습니다.")
+                cur.execute("INSERT INTO user_skills(user_id, skill_id, unlocked) VALUES (%s, 1, TRUE), (%s, 2, TRUE), (%s, 3, TRUE), (%s, 4, TRUE)", (user_id, user_id, user_id, user_id))
+                print(f"유저 ID {user_id}에게 모든 스킬을 제공했습니다.")
         conn.commit(); cur.close(); conn.close()
 
     def get_user_skills(self, username):
@@ -153,7 +153,7 @@ class Database:
         conn = self.pool.get_connection(); cur = conn.cursor()
         cur.execute("INSERT INTO users(username, pw_hash) VALUES (%s,%s)", (username, pw_hash))
         user_id = cur.lastrowid
-        cur.execute("INSERT INTO user_skills(user_id, skill_id, unlocked) VALUES (%s, 1, TRUE), (%s, 2, TRUE)", (user_id, user_id))
+        cur.execute("INSERT INTO user_skills(user_id, skill_id, unlocked) VALUES (%s, 1, TRUE), (%s, 2, TRUE), (%s, 3, TRUE), (%s, 4, TRUE)", (user_id, user_id, user_id, user_id))
         conn.commit(); cur.close(); conn.close()
     def toggle_is_playing(self, room_name):
         conn = self.pool.get_connection(); cur = conn.cursor()

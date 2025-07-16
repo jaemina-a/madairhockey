@@ -12,8 +12,8 @@ class Game:
     GOAL_WIDTH = 121  # 골대 폭
     GOAL_HEIGHT = 20  # 골대 높이
     GOAL_WIDTH_MIN = 60    # 최소 골대 폭(절대값)
-    GOAL_WIDTH_SKILL3 = 0.7 # 스킬3: 1/2
-    GOAL_WIDTH_SKILL4 = 0.5 # 스킬4: 1/4
+    GOAL_WIDTH_SKILL3 = 0.4 # 스킬3: 1/2
+    GOAL_WIDTH_SKILL4 = 0.2 # 스킬4: 1/4
     GOAL_WIDTH_DURATION3 = 5.0 # 스킬3: 5초
     GOAL_WIDTH_DURATION4 = 3.0 # 스킬4: 3초
 
@@ -181,6 +181,7 @@ class Game:
         elif self.by + self.BR >= self.H and not (goal_left_bottom <= self.bx <= goal_right_bottom and self.by + self.BR >= self.H - self.GOAL_HEIGHT):
             self.by = self.H - self.BR
             self.vy *= -1
+        self.socketio.emit("state", self.out(), room=self.room)
 
     def reset_ball(self, direction):
         """골이 들어간 후 중앙에서 1초 대기 후 발사"""
@@ -254,6 +255,11 @@ class Game:
                 
                 # 스킬 활성화 (쿨타임은 실제 사용 시점에 기록)
                 self.active_skill[side] = skill_id
+                
+                # 3,4번 스킬은 즉시 효과 적용
+                if skill_id in [3, 4]:
+                    self.apply_skill_effect(side)
+                
                 return True
         return False
 
@@ -280,6 +286,7 @@ class Game:
                 self.goal_width_effect[side] = {"ratio": self.GOAL_WIDTH_SKILL3, "until": time.time() + self.GOAL_WIDTH_DURATION3}
             elif skill_id == 4:
                 self.goal_width_effect[side] = {"ratio": self.GOAL_WIDTH_SKILL4, "until": time.time() + self.GOAL_WIDTH_DURATION4}
+            self.emit("state", self.out())
             # 스킬 비활성화
             self.active_skill[side] = 0
 
@@ -317,13 +324,20 @@ class Game:
                 converted.append(converted_skill)
             return converted
         
+        # 골대 효과 디버그 로그
+        top_ratio = self.goal_width_effect["top"]["ratio"] if self.goal_width_effect["top"] else 0.5
+        bottom_ratio = self.goal_width_effect["bottom"]["ratio"] if self.goal_width_effect["bottom"] else 0.5
+        
+        if top_ratio != 0.5 or bottom_ratio != 0.5:
+            print(f"골대 효과 적용: top={top_ratio}, bottom={bottom_ratio}")
+        
         return {
             "ball":     {"x": self.bx, "y": self.by, "timestamp": time.time() * 1000},
             "paddles":  self.paddle,
             "scores":   self.score,
             "goal_width_ratio": {
-                "top": self.goal_width_effect["top"]["ratio"] if self.goal_width_effect["top"] else 0.5,
-                "bottom": self.goal_width_effect["bottom"]["ratio"] if self.goal_width_effect["bottom"] else 0.5
+                "top": top_ratio,
+                "bottom": bottom_ratio
             },
             "skills":   {
                 "top": {
