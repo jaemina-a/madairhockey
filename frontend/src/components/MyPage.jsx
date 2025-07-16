@@ -1,11 +1,29 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import titleBg from '../assets/title_bg.png';
-import btnGameStart from '../assets/btn_gamestart.png';
-import shopImg from '../assets/shop.png';
+import bgm from '../assets/audio/jpop.mp3';
 import './MyPage.css';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import socket from "../socket";
 import { useEffect } from 'react';
+import jpop from '../assets/audio/jpop.mp3';
+import a from '../assets/audio/a.mp3';
+import b from '../assets/audio/b.mp3';
+import c from '../assets/audio/c.mp3';
+import d from '../assets/audio/d.mp3';
+import e from '../assets/audio/e.mp3';
+import f from '../assets/audio/f.mp3';
+import audioFry from '../assets/audio/audio_fry.mp3';
+// 필요한 만큼 음악 파일 import (예시)
+
+const musicList = [
+  { src: jpop, title: 'LEGEND J-POP' },
+  { src: a, title: 'LEGEND MUSIC' },
+  { src: b, title: 'FRIENDSHIP' },
+  { src: c, title: 'LOVE' }, 
+  { src: d, title: 'HAPPINESS' },
+  { src: e, title: 'SADNESS' },
+  { src: f, title: '진짜좋은노래' },
+  // { src: require('../assets/audio/다른음악.mp3'), title: '다른 곡' },
+];
 
 export default function MyPage() {
   const navigate = useNavigate();
@@ -19,6 +37,10 @@ export default function MyPage() {
   ]);
   const [selectedTab, setSelectedTab] = useState('list');
   const [selectedRoom, setSelectedRoom] = useState(null);
+  const [currentTrack, setCurrentTrack] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [volume, setVolume] = useState(0.7);
+  const audioRef = useRef(null);
 
   useEffect(()=>{
     socket.on("room_updated", (roomList)=>{
@@ -28,6 +50,55 @@ export default function MyPage() {
       console.log(error.error);
     });
   }, []);
+
+  // 음악 재생/일시정지/볼륨/다음/이전
+  const handlePlayPause = () => {
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      audioRef.current.play();
+      setIsPlaying(true);
+    }
+  };
+  const handlePrev = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    setCurrentTrack((prev) => (prev - 1 + musicList.length) % musicList.length);
+    setIsPlaying(true);
+  };
+  const handleNext = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    setCurrentTrack((prev) => (prev + 1) % musicList.length);
+    setIsPlaying(true);
+  };
+  const handleVolume = (e) => {
+    setVolume(Number(e.target.value));
+    if (audioRef.current) audioRef.current.volume = Number(e.target.value);
+  };
+  // 트랙 변경 시 자동 재생
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.load();
+      if (isPlaying) audioRef.current.play();
+    }
+  }, [currentTrack]);
+  // 볼륨 동기화
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = volume;
+  }, [volume]);
+  // 일시정지/재생 동기화
+  useEffect(() => {
+    if (audioRef.current) {
+      if (isPlaying) audioRef.current.play();
+      else audioRef.current.pause();
+    }
+  }, [isPlaying]);
 
 
   const updateRoomList = async ()=>{
@@ -62,13 +133,104 @@ export default function MyPage() {
   }
 
   return (
+    <div>
+      
+      <div style={{
+  position: 'fixed',
+  top: 14,
+  right: 14,
+  zIndex: 999,
+  background: 'rgba(255,255,255,0.9)',
+  borderRadius: 10,
+  boxShadow: '0 1px 6px #0002',
+  padding: '0.6em 1em',
+  minWidth: 200,
+  minHeight: 60,
+  color: '#222',
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: '1px solid #e0e7ef',
+  fontFamily: 'Pretendard, sans-serif',
+  userSelect: 'none',
+  boxSizing: 'border-box',
+  gap: 4,
+}}>
+  {/* Title */}
+  <div style={{
+    fontWeight: 600,
+    fontSize: 12,
+    color: '#2563eb',
+    maxWidth: '100%',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    textAlign: 'center',
+  }}>
+    {musicList[currentTrack].title}
+  </div>
+
+  {/* Buttons */}
+  <div style={{
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  }}>
+    <button onClick={handlePrev} style={mp3SimpleBtnStyle}>{'⏮️'}</button>
+    <button onClick={handlePlayPause} style={mp3SimpleBtnStyle}>{isPlaying ? '⏸️' : '▶️'}</button>
+    <button onClick={handleNext} style={mp3SimpleBtnStyle}>{'⏭️'}</button>
+  </div>
+
+  {/* Volume */}
+  <div style={{
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    marginTop: 4,
+  }}>
+    <input
+      type="range"
+      min={0}
+      max={1}
+      step={0.01}
+      value={volume}
+      onChange={handleVolume}
+      style={{
+        width: '100%',
+        height: 6,
+        accentColor: '#2563eb',
+        background: '#e0e7ef',
+        borderRadius: 4,
+      }}
+    />
+  </div>
+
+  {/* Audio */}
+  <audio
+    ref={audioRef}
+    src={musicList[currentTrack].src}
+    autoPlay
+    loop
+    style={{ display: 'none' }}
+  />
+</div>
+
     <div style={{
       minHeight: '100vh',
+      minWidth: '100vw',
+      height: '100vh',
+      width: '100vw',
       background: 'linear-gradient(135deg, #1e3a8a 0%, #60a5fa 100%)',
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start',
       fontFamily: 'Pretendard, sans-serif',
       padding: '0',
-      position: 'relative'
+      position: 'relative',
+      boxSizing: 'border-box',
+      overflow: 'hidden',
     }}>
       {/* 상단 탭/버튼 */}
       <div style={{ display: 'flex', gap: 16, marginTop: 32, marginBottom: 12 }}>
@@ -175,6 +337,7 @@ export default function MyPage() {
         <button style={pageBtnStyle}>{'>'}</button>
       </div>
     </div>
+    </div>
   );
 }
 
@@ -190,4 +353,13 @@ const pageBtnStyle = {
   color: '#fff', fontWeight: 700, fontSize: 18, border: 'none', borderRadius: 8,
   boxShadow: '0 1px 4px #0002', padding: '0.4em 1.2em', cursor: 'pointer',
   outline: 'none', opacity: 0.95
+}; 
+
+const mp3SimpleBtnStyle = {
+  background: 'none',
+  color: '#2563eb', fontWeight: 700, fontSize: 13, border: 'none', borderRadius: '50%',
+  boxShadow: 'none', width: 20, height: 20, cursor: 'pointer',
+  outline: 'none', margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+  transition: 'background 0.2s, color 0.2s',
+  padding: 0,
 }; 
