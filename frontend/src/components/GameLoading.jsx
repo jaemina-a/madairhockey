@@ -125,7 +125,7 @@ export default function GameLoading() {
       // 2초 후 게임 시작
       setTimeout(() => {
         console.log("게임 시작 버튼 클릭! room_name : ", roomName, "username : ", username);
-        navigate(`/game?username=${encodeURIComponent(username)}&room_name=${encodeURIComponent(roomName)}`);
+        // navigate(`/game?username=${encodeURIComponent(username)}&room_name=${encodeURIComponent(roomName)}`);
       }, 2000);
     });
     socket.emit("join_loading", {room_name: roomName, username: username});
@@ -138,7 +138,8 @@ export default function GameLoading() {
       setIsGameStartReady(true);
       // 자동으로 게임 시작
       setTimeout(() => {
-        navigate(`/game?username=${encodeURIComponent(username)}&room_name=${encodeURIComponent(roomName)}`);
+        handleGameStart()
+        // navigate(`/game?username=${encodeURIComponent(username)}&room_name=${encodeURIComponent(roomName)}`);
       }, 1000); // 1초 후 게임 시작
     } else {
       setIsGameStartReady(false);
@@ -153,7 +154,11 @@ export default function GameLoading() {
   const handleGameStart = () => {
     if(isGameStartReady){
       console.log("게임 시작 버튼 클릭!");
-      navigate(`/game?username=${encodeURIComponent(username)}&room_name=${encodeURIComponent(roomName)}`);
+      if(mySide == "left"){
+        navigate(`/game?username=${encodeURIComponent(username)}&room_name=${encodeURIComponent(roomName)}&character_id=${encodeURIComponent(leftCharIndex)}`);
+      }else{
+        navigate(`/game?username=${encodeURIComponent(username)}&room_name=${encodeURIComponent(roomName)}&character_id=${encodeURIComponent(rightCharIndex)}`);
+      }
     }
   };
 

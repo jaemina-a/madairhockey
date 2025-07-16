@@ -5,6 +5,11 @@ import fry_audio from "../assets/audio/audio_fry.mp3";
 import malletRedImg from '../assets/mallet_red.png';
 import puckImg from '../assets/puck.png';
 import inkEffect from '../assets/ink_effect.png';
+import jaeminChar from '../assets/character/jaemin_char.png';
+import bongChar from '../assets/character/bong_char.png';
+import sonChar from '../assets/character/son_char.png';
+import jparkChar from '../assets/character/jpark_char.png';
+import bgm from '../assets/audio/main_bgm.mp3';
 // 세로형 에어하키 보드 크기
 const W = 406, H = 700, PR = 25, BR = 12;
 
@@ -33,7 +38,13 @@ export default function GameBoard() {
   const [searchParams] = useSearchParams();
   const username = searchParams.get('username') || 'player1';
   const roomName = searchParams.get('room_name') || 'default'; // room_name 파라미터 추가
-  
+  const characterImages = [
+    { src: jaeminChar, name: 'jaemin' },
+    { src: bongChar, name: 'bong' },
+    { src: sonChar, name: 'son' },
+    { src: jparkChar, name: 'jpark' },
+  ];
+  const characterId = searchParams.get('character_id') || 0;
   const [state, setState] = useState(null);
   const [side, setSide] = useState(null);
   const [userSkills, setUserSkills] = useState([]);
@@ -56,6 +67,19 @@ export default function GameBoard() {
   const [goalAnim, setGoalAnim] = useState(false); // 득점 애니메이션 상태
   const [goalAnimPos, setGoalAnimPos] = useState(null); // 득점 애니메이션용 위치
   const prevScores = useRef(null); // 이전 점수 저장
+  const [isBgmPlaying, setIsBgmPlaying] = useState(true);
+  const audioRef = useRef(null);
+
+  const handleBgmToggle = () => {
+    if (!audioRef.current) return;
+    if (isBgmPlaying) {
+      audioRef.current.pause();
+      setIsBgmPlaying(false);
+    } else {
+      audioRef.current.play();
+      setIsBgmPlaying(true);
+    }
+  };
 
   // 유저 스킬 가져오기
   useEffect(() => {
@@ -598,6 +622,39 @@ export default function GameBoard() {
         padding: 0
       }}
     >
+      <audio
+        ref={audioRef}
+        src={bgm}
+        autoPlay
+        loop
+        style={{display: 'none'}}
+      />
+      {/* BGM 토글 버튼: 우측 상단 */}
+      <button
+        onClick={handleBgmToggle}
+        style={{
+          position: 'absolute',
+          top: 24,
+          right: 32,
+          zIndex: 100,
+          background: isBgmPlaying ? 'linear-gradient(90deg, #38bdf8 0%, #2563eb 100%)' : '#e0e7ef',
+          color: isBgmPlaying ? '#fff' : '#2563eb',
+          border: 'none',
+          borderRadius: 16,
+          width: 44,
+          height: 44,
+          fontSize: 22,
+          fontWeight: 900,
+          boxShadow: '0 2px 8px #38bdf855',
+          cursor: 'pointer',
+          opacity: 0.92,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'all 0.2s',
+        }}
+        title={isBgmPlaying ? '배경음악 끄기' : '배경음악 켜기'}
+      >
+        {isBgmPlaying ? '⏸️' : '▶️'}
+      </button>
       {/* 중앙 하키판 */}
       <div 
         ref={gameBoardRef}
@@ -633,7 +690,7 @@ export default function GameBoard() {
                 height: 400,
                 opacity: 1,
                 zIndex: 5,
-                pointerEvents: 'none',5
+                pointerEvents: 'none',
               }}
             />
 
@@ -1152,6 +1209,25 @@ export default function GameBoard() {
       }}>
         <span style={{ fontSize: '1.5em', fontWeight: 900 }}>{side === 'left' ? scores.bottom : scores.top}</span>
         <span style={{ fontSize: '0.9em', opacity: 0.8 }}>{side === 'left' ? (state?.usernames?.bottom || '상대') : (state?.usernames?.top || '상대')}</span>
+      </div>
+
+      
+
+      {/* 캐릭터 이미지 UI 표시 (우측 하단) */}
+      <div style={{
+        position: 'absolute',
+        right: 100,
+        bottom: 132,
+        zIndex: 20
+      }}>
+        <img
+          src={characterImages[characterId]?.src}
+          style={{
+            width: 120, height: 120, objectFit: 'contain', borderRadius: 32,
+            boxShadow: '0 4px 16px #38bdf8aa', background: '#fff',
+            border: '3px solid #bae6fd',
+          }}
+        />
       </div>
 
       <style>{`
