@@ -88,7 +88,7 @@ def register_socket_handlers(socketio):
         room = data.get("room", "default")
         username = data.get("username")
         print("join emit in server", room, username)
-        join_room(room)
+        join_room(room) # 이거 빼기기
         sid = request.sid
 
         participants.setdefault(room, set()).add(sid)
@@ -143,10 +143,13 @@ def register_socket_handlers(socketio):
 
     @socketio.on("set_selected_skill")
     def set_selected_skill(data):
+        print("[DEBUG] set_selected_skill 수신:", data)
         g = games.get(data["room"])
         if g:
             skill_id = data.get("skill_id", 0)
+            print("[DEBUG] set_selected_skill: side =", data["side"], "skill_id =", skill_id)
             g.set_selected_skill(data["side"], skill_id)
+            print("[DEBUG] 서버에 저장된 selected_skill =", g.selected_skill)
 
     @socketio.on("disconnect")
     def disconnect():
