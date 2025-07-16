@@ -12,8 +12,8 @@ class Game:
     GOAL_WIDTH = 121  # 골대 폭
     GOAL_HEIGHT = 20  # 골대 높이
     GOAL_WIDTH_MIN = 60    # 최소 골대 폭(절대값)
-    GOAL_WIDTH_SKILL3 = 0.4 # 스킬3: 1/2
-    GOAL_WIDTH_SKILL4 = 0.2 # 스킬4: 1/4
+    GOAL_WIDTH_SKILL3 = 0.25 # 스킬3: 1/2
+    GOAL_WIDTH_SKILL4 = 0.125 # 스킬4: 1/4
     GOAL_WIDTH_DURATION3 = 5.0 # 스킬3: 5초
     GOAL_WIDTH_DURATION4 = 3.0 # 스킬4: 3초
 
@@ -101,7 +101,7 @@ class Game:
                 print("bounce emit in game_logic top")
                 # 선택된 스킬이 있으면 자동으로 활성화
                 if self.active_skill["top"] == 0:  # 이미 활성화된 스킬이 없을 때만
-                    self.auto_activate_selected_skill("top")
+                    activated = self.auto_activate_selected_skill("top")
                 
                 # 스킬이 활성화되어 있으면 공 속도 증가 및 쿨타임 시작
                 if self.active_skill["top"] > 0:
@@ -112,11 +112,9 @@ class Game:
                             self.vy *= multiplier
                             self.vx *= multiplier
                             break
-                    # 스킬 효과 적용 후 쿨타임 시작
-                    print("skill_activated emit in game_logic")
                     self.emit("skill_activated", {"side": "top", "skill_id": self.active_skill["top"]})
                     self.apply_skill_effect("top")
-                    
+
         # 아래쪽 패들 충돌 (원형)
         bottom_paddle = self.paddle["bottom"]
         dx = self.bx - bottom_paddle["x"]
@@ -142,9 +140,10 @@ class Game:
 
                 self.emit("bounce", {"side": "bottom"})
                 print("bounce emit in game_logic bottom")
+
                 # 선택된 스킬이 있으면 자동으로 활성화
                 if self.active_skill["bottom"] == 0:  # 이미 활성화된 스킬이 없을 때만
-                    self.auto_activate_selected_skill("bottom")
+                    activated = self.auto_activate_selected_skill("bottom")
                 
                 # 스킬이 활성화되어 있으면 공 속도 증가 및 쿨타임 시작
                 if self.active_skill["bottom"] > 0:
@@ -155,10 +154,10 @@ class Game:
                             self.vy *= multiplier
                             self.vx *= multiplier
                             break
-                    # 스킬 효과 적용 후 쿨타임 시작
-                    print("skill_activated emit in game_logic bottom")
+
                     self.emit("skill_activated", {"side": "bottom", "skill_id": self.active_skill["bottom"]})
                     self.apply_skill_effect("bottom")
+
 
         # 골 체크 - 골대에 들어갔는지 확인
         goal_width = self.W // 2  # 골대 폭을 전체의 1/2로 설정
@@ -287,8 +286,8 @@ class Game:
             elif skill_id == 4:
                 self.goal_width_effect[side] = {"ratio": self.GOAL_WIDTH_SKILL4, "until": time.time() + self.GOAL_WIDTH_DURATION4}
             self.emit("state", self.out())
-            # 스킬 비활성화
             self.active_skill[side] = 0
+
 
     def get_skill_cooldown(self, side, skill_id):
         """스킬의 남은 쿨타임을 반환 (초 단위)"""
