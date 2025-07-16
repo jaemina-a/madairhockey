@@ -20,7 +20,9 @@ def serialize_loading_game(game):
         "right_ready": getattr(game, "right_ready", False),
         "left_user_skills": getattr(game, "left_user_skills", []),
         "right_user_skills": getattr(game, "right_user_skills", []),
-        "COUNT": getattr(game, "COUNT", 0)
+        "COUNT": getattr(game, "COUNT", 0),
+        "left_character": getattr(game, "left_character", 0),
+        "right_character": getattr(game, "right_character", 0),
     }
 
 def register_socket_handlers(socketio):
@@ -233,11 +235,34 @@ def register_socket_handlers(socketio):
         loading_games[room_name].right_user_skills = []
         loading_games[room_name].left_ready = False
         loading_games[room_name].right_ready = False
-        
+        # 캐릭터 인덱스(혹은 이름) 기본값 추가
+        loading_games[room_name].left_character = 0
+        loading_games[room_name].right_character = 0
         print("loading_games[room_name]",loading_games[room_name].COUNT)
         a = DB.get_room_list()
         a_serialized = [serialize_room(room) for room in a]
         socketio.emit("room_updated", a_serialized)
+
+    # 캐릭터 선택 변경 이벤트
+    @socketio.on("character_select")
+    def character_select(data):
+        room_name = data.get("room_name")
+        side = data.get("side")
+        char_index = data.get("character_index")
+        if room_name in loading_games:
+            if side == "left":
+                loading_games[room_name].left_character = char_index
+            elif side == "right":
+                loading_games[room_name].right_character = char_index
+            # 실시간 동기화
+            socketio.emit(
+                "loading_room_updated",
+                {
+                    "room_name": room_name,
+                    "loading_game": serialize_loading_game(loading_games[room_name])
+                },
+                room=room_name
+            )
 
 def get_games():
     return games
