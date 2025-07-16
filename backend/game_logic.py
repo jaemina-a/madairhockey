@@ -34,6 +34,8 @@ class Game:
         self.base_speed = self.SPD
         self.base_goal_width = self.GOAL_WIDTH
         self.goal_width_effect = {"top": None, "bottom": None} # 각 side별로 관리
+        self.blind_effect = {"top": None, "bottom": None}  # {"shape": "circle"/"rect", "until": float}
+
 
     def emit(self, event, data):
         """소켓 이벤트를 emit하는 헬퍼 메서드"""
@@ -49,8 +51,11 @@ class Game:
         now = time.time()
         for side in ["top", "bottom"]:
             eff = self.goal_width_effect[side]
-            if eff and now > eff["until"]:
+            eff = self.blind_effect[side]
+            if eff and now + 0.1 > eff["until"]:
                 self.goal_width_effect[side] = None
+                self.blind_effect[side] = None
+
         # 득점 체크용: 각 골대별로 적용
         goal_width_top = int(self.W * (self.goal_width_effect["top"]["ratio"] if self.goal_width_effect["top"] else 0.5))
         goal_width_top = max(goal_width_top, self.GOAL_WIDTH_MIN)
@@ -256,7 +261,7 @@ class Game:
                 self.active_skill[side] = skill_id
                 
                 # 3,4번 스킬은 즉시 효과 적용
-                if skill_id in [3, 4]:
+                if skill_id in [3, 4, 5, 6]:
                     self.apply_skill_effect(side)
                 
                 return True
@@ -285,6 +290,11 @@ class Game:
                 self.goal_width_effect[side] = {"ratio": self.GOAL_WIDTH_SKILL3, "until": time.time() + self.GOAL_WIDTH_DURATION3}
             elif skill_id == 4:
                 self.goal_width_effect[side] = {"ratio": self.GOAL_WIDTH_SKILL4, "until": time.time() + self.GOAL_WIDTH_DURATION4}
+            # 먹물/블라인드 효과(5,6)는 상대방 side에 적용
+            if skill_id == 5:
+                self.blind_effect[self._opponent(side)] = {"shape": "circle", "until": time.time() + 3.0}
+            elif skill_id == 6:
+                self.blind_effect[self._opponent(side)] = {"shape": "rect", "until": time.time() + 5.0}
             self.emit("state", self.out())
             self.active_skill[side] = 0
 
@@ -338,6 +348,10 @@ class Game:
                 "top": top_ratio,
                 "bottom": bottom_ratio
             },
+            "blind_effect": {
+                "top": self.blind_effect["top"],
+                "bottom": self.blind_effect["bottom"]
+            },
             "skills":   {
                 "top": {
                     "active": self.active_skill["top"], 
@@ -348,4 +362,8 @@ class Game:
                     "available": convert_skills(self.player_skills["bottom"])
                 }
             }
+
         } 
+
+    def _opponent(self, side):
+        return "bottom" if side == "top" else "top" 

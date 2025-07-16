@@ -19,6 +19,11 @@ import jparkChar from '../assets/character/jpark_char.png';
 //   skills: [1, 2, 3, 4],
 // };
 
+// 유틸: 6개를 2개씩 3줄로 나누는 함수
+function chunkSkills(skills) {
+  return [skills.slice(0,2), skills.slice(2,4), skills.slice(4,6)];
+}
+
 export default function GameLoading() {
   const [searchParams] = useSearchParams();
   const username = searchParams.get('username') || 'player1';
@@ -231,6 +236,7 @@ export default function GameLoading() {
         width: '48%', height: '80%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start',
         position: 'relative',
       }}>
+
         {/* 유저 이름 (캐릭터 위, 세련된 스타일) */}
         {leftUser.name !== 'waiting' && (
           <div style={{
@@ -291,6 +297,7 @@ export default function GameLoading() {
               >
                 {'>'}
               </button>
+
             </div>
             {/* 스킬 아이콘: 캐릭터 아래 3x2 그리드, 세련된 스타일 */}
             <div style={{
@@ -358,6 +365,7 @@ export default function GameLoading() {
       }}>
         {/* 유저 이름 (캐릭터 위, 세련된 스타일) */}
         {rightUser.name !== 'waiting' && (
+
           <div style={{
             fontSize: 48, fontWeight: 700, color: '#fff',
             textShadow: '0 2px 12px #38bdf8, 0 1px 0 #0ea5e9',
