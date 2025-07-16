@@ -81,6 +81,8 @@ export default function GameBoard() {
     socketRef.current = socket;
 
     // 서버에 접속
+    console.log("room : ", room);
+    console.log("username : ", username);
     socket.emit("join", { room, username });
 
     // joined 이벤트
