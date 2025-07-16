@@ -20,7 +20,14 @@ def register_socket_handlers(socketio):
             loading_games[room_name].left_ready = not loading_games[room_name].left_ready
         elif(side == "right"):
             loading_games[room_name].right_ready = not loading_games[room_name].right_ready
+        
+        # 준비 상태 업데이트
         emit("join_loading_ready_toggle_success", {"room_name": room_name, "side": side, "ready": loading_games[room_name].left_ready if side == "left" else loading_games[room_name].right_ready}, to=room_name)
+        
+        # 두 명이 모두 준비되면 게임 시작 신호 보내기
+        if loading_games[room_name].left_ready and loading_games[room_name].right_ready:
+            print(f"두 명이 모두 준비됨! {room_name} 방 게임 시작!")
+            socketio.emit("game_start_ready", {"room_name": room_name}, room=room_name)
     @socketio.on("join_loading")
     def join_loading(data):
         room_name = data.get("room_name")
@@ -129,7 +136,10 @@ def register_socket_handlers(socketio):
             skill_id = data.get("skill_id", 1)
             success = g.activate_skill(data["side"], skill_id)
             if success:
-                emit("skill_activated", {"side": data["side"], "skill_id": skill_id}, room=data["room"])
+                # 3,4번 스킬은 즉시 효과 적용 (이미 activate_skill에서 처리됨)
+                # 모든 스킬에 대해 이벤트 발송
+                print(f"스킬 {skill_id} 활성화 성공! {data['side']} 플레이어")
+                socketio.emit("skill_activated", {"side": data["side"], "skill_id": skill_id}, room=data["room"])
 
     @socketio.on("set_selected_skill")
     def set_selected_skill(data):

@@ -23,10 +23,11 @@ export default function GameLoading() {
   const [isLoading, setIsLoading] = useState(true);
   const [isReady_left, setIsReady_left] = useState(false);
   const [isReady_right, setIsReady_right] = useState(false);
-  var isGameStartReady = false;
+  const [isGameStartReady, setIsGameStartReady] = useState(false); // React 상태로 변경
   const [leftUser, setLeftUser] = useState({name : "", skills : []});
   const [rightUser, setRightUser] = useState({name : "", skills : []});
   const navigate = useNavigate();
+  
   useEffect(()=>{
     socket.on('join_loading_fail', (error)=>{
       console.log(error.error);
@@ -41,29 +42,50 @@ export default function GameLoading() {
       }else{
         setIsReady_right(data.ready);
       }
-      if(isReady_left && isReady_right){
-        isGameStartReady = true;
-        console.log("leftUser.ready && rightUser.ready");
-      }
-      else{
-        isGameStartReady = false;
-      }
     });
     socket.on('join_loading_success', (data)=>{
       console.log(data);
       setLeftUser({name : data.left_username, skills : data.left_user_skills});
       setRightUser({name : data.right_username, skills : data.right_user_skills});
     });
+    // 서버에서 게임 시작 신호 받기
+    socket.on('game_start_ready', (data)=>{
+      console.log("서버에서 게임 시작 신호 받음!", data);
+      setIsGameStartReady(true);
+      // 2초 후 게임 시작
+      setTimeout(() => {
+        navigate(`/game?username=${encodeURIComponent(username)}&room_name=${encodeURIComponent(roomName)}`);
+      }, 2000);
+    });
     socket.emit("join_loading", {room_name: roomName, username: username});
   }, []);
+  
+  // 두 명이 모두 준비되면 자동으로 게임 시작
   useEffect(()=>{
-    if(leftUser.ready && rightUser.ready){
-      console.log("leftUser.ready && rightUser.ready");
+    if(isReady_left && isReady_right){
+      console.log("두 명이 모두 준비됨! 게임 시작!");
+      setIsGameStartReady(true);
+      // 자동으로 게임 시작
+      setTimeout(() => {
+        navigate(`/game?username=${encodeURIComponent(username)}&room_name=${encodeURIComponent(roomName)}`);
+      }, 1000); // 1초 후 게임 시작
+    } else {
+      setIsGameStartReady(false);
     }
-  }, [leftUser.ready, rightUser.ready]);
+  }, [isReady_left, isReady_right, username, roomName, navigate]);
+  
   function readyToggle(side){
     socket.emit("join_loading_ready_toggle", {room_name: roomName, side: side});
   }
+  
+  // 게임 시작 버튼 클릭 핸들러
+  const handleGameStart = () => {
+    if(isGameStartReady){
+      console.log("게임 시작 버튼 클릭!");
+      navigate(`/game?username=${encodeURIComponent(username)}&room_name=${encodeURIComponent(roomName)}`);
+    }
+  };
+
   return (
     <div style={{
       width: '100vw', height: '100vh',
@@ -196,34 +218,30 @@ export default function GameLoading() {
         zIndex: 0,
         opacity: 0.7
       }} />
-      {/* 게임 시작 버튼 (UI만) */}
+      {/* 게임 시작 버튼 */}
       <button
         style={{
           position: 'absolute',
           left: '50%',
           bottom: '7%',
           transform: 'translateX(-50%)',
-          background: 'linear-gradient(90deg, #22c55e 0%, #38bdf8 100%)',
+          background: isGameStartReady ? 'linear-gradient(90deg, #22c55e 0%, #16a34a 100%)' : 'linear-gradient(90deg, #6b7280 0%, #4b5563 100%)',
           color: '#fff',
           fontWeight: 900,
           fontSize: 24,
           border: 'none',
           borderRadius: 16,
           padding: '0.7em 2.5em',
-          boxShadow: '0 4px 16px #0002',
+          boxShadow: isGameStartReady ? '0 4px 16px #22c55e55' : '0 4px 16px #0002',
           letterSpacing: 2,
-          cursor: 'pointer',
+          cursor: isGameStartReady ? 'pointer' : 'not-allowed',
           transition: 'all 0.2s',
+          opacity: isGameStartReady ? 1 : 0.6,
         }}
-        onClick={() => {
-          if(isGameStartReady){
-            console.log("game start");
-            //navigate(`/game?username=${encodeURIComponent(username)}&room_name=${encodeURIComponent(roomName)}`);
-          }
-        }}
-        // onClick={() => { /* 추후 구현 */ }}
+        onClick={handleGameStart}
+        disabled={!isGameStartReady}
       >
-        게임 시작
+        {isGameStartReady ? '게임 시작!' : '준비 대기중...'}
       </button>
     </div>
   );

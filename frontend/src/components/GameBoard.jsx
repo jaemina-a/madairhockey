@@ -12,6 +12,7 @@ const W = 406, H = 700, PR = 25, BR = 12;
 const GOAL_WIDTH = 120;
 const GOAL_HEIGHT = 20;
 
+
 const audio_fry = new Audio(fry_audio);
 
 // Throttle 함수
@@ -31,6 +32,7 @@ function throttle(func, limit) {
 export default function GameBoard() {
   const [searchParams] = useSearchParams();
   const username = searchParams.get('username') || 'player1';
+  const roomName = searchParams.get('room_name') || 'default'; // room_name 파라미터 추가
   
   const [state, setState] = useState(null);
   const [side, setSide] = useState(null);
@@ -42,7 +44,7 @@ export default function GameBoard() {
   const [gameReady, setGameReady] = useState(false);
   const [status, setStatus] = useState('connecting'); // connecting | waiting | ready | disconnected
   const sideRef = useRef(null);
-  const room = "default";
+  const room = roomName; // room_name 사용
   const socketRef = useRef(null);
   const gameBoardRef = useRef(null);
   const lastServerUpdate = useRef(0);
@@ -96,6 +98,11 @@ export default function GameBoard() {
     socket.on("state", data => {
       setState(data);
 
+      // 골대 효과 디버그 로그
+      if (data.goal_width_ratio && (data.goal_width_ratio.top !== 0.5 || data.goal_width_ratio.bottom !== 0.5)) {
+        console.log("서버에서 골대 효과 수신:", data.goal_width_ratio);
+      }
+
       // 클라이언트 패들 위치 동기화
       // if (sideRef.current && data.paddles) {
       //   const currentPaddle = sideRef.current === 'left' ? data.paddles.top : data.paddles.bottom;
@@ -122,9 +129,18 @@ export default function GameBoard() {
     
     console.log("skill_activated socket.on success");
     // 스킬 활성화 피드백
-    socket.on("skill_activated", () => {
-      console.log("skill_activated emit success");
-      setSelectedSkillId(null);
+    socket.on("skill_activated", (data) => {
+      console.log("skill_activated emit success", data);
+
+      if (data.side === sideRef.current) {
+        setSelectedSkillId(null);  // 버튼 UI 상태 리셋은 **내가 쓴 경우에만**
+      }
+      
+      // 3,4번 스킬은 양쪽 화면에 표시
+      if (data.skill_id === 3 || data.skill_id === 4) {
+        console.log(`3,4번 스킬 ${data.skill_id} 활성화! 양쪽 화면에 표시`);
+        setLocalActiveSkill({ id: data.skill_id, ts: Date.now() });
+      }
     });
 
     socket.on("bounce", () => {
@@ -208,20 +224,19 @@ export default function GameBoard() {
     }
   }, [side, throttledServerUpdate, gameReady]);
 
-  // 3,4번 스킬 활성화 상태(로컬) 관리
+    // 3,4번 스킬 활성화 상태(로컬) 관리
   const [localActiveSkill, setLocalActiveSkill] = useState(null); // {id, ts}
 
   // 스킬 즉시 발동 함수 (3,4번)
   const activateGoalSkill = useCallback((skillId) => {
     if (!side || !socketRef.current) return;
     // 서버에 즉시 발동 요청
-    socketRef.current.emit("set_selected_skill", {
+    socketRef.current.emit("activate_skill", {
       room,
       side,
       skill_id: skillId
     });
-    // 로컬에서도 즉시 골대 줄이기(시각 효과)
-    setLocalGoalSkill({ id: skillId, ts: Date.now() });
+    // 로컬에서도 즉시 활성화 표시
     setLocalActiveSkill({ id: skillId, ts: Date.now() });
   }, [side, room]);
 
@@ -290,7 +305,7 @@ export default function GameBoard() {
   }, [selectedSkillId, side, room]);
 
     // �� 핵심: 서버 위치와 로컬 위치를 비교해서 부드럽게 보정
-  useEffect(() => {
+  /*useEffect(() => {
     if (!serverPaddlePosition || !localPaddlePosition || !side) return;
     
     // 두 위치의 차이 계산
@@ -312,10 +327,29 @@ export default function GameBoard() {
     }
   }, [serverPaddlePosition, localPaddlePosition, side]);
 
+  */
+  useEffect(() => {
+    let rafId;
+    const animate = () => {
+      setLocalPaddlePosition(prev => {
+        if (!prev || !serverPaddlePosition) return serverPaddlePosition;
+        const dx = serverPaddlePosition.x - prev.x;
+        const dy = serverPaddlePosition.y - prev.y;
+        return {
+          x: prev.x + dx * 0.2,
+          y: prev.y + dy * 0.2
+        };
+      });
+      rafId = requestAnimationFrame(animate);
+    };
+    if (serverPaddlePosition) animate();
+    return () => cancelAnimationFrame(rafId);
+  }, [serverPaddlePosition]);
+  
   // 🔥 공 위치 보간: 서버 위치와 로컬 위치를 비교해서 부드럽게 보정
   // 기존 useEffect는 주석 처리
   
-  useEffect(() => {
+  /*useEffect(() => {
     if (!serverBallPosition) return;
     if (!localBallPosition) {
       // 최초에는 서버 위치로 맞춤
@@ -341,6 +375,25 @@ export default function GameBoard() {
 
   }, [serverBallPosition, localBallPosition]);
 
+  */
+  useEffect(() => {
+    let rafId;
+    const animate = () => {
+      setLocalBallPosition(prev => {
+        if (!prev || !serverBallPosition) return serverBallPosition;
+        const dx = serverBallPosition.x - prev.x;
+        const dy = serverBallPosition.y - prev.y;
+        return {
+          x: prev.x + dx * 0.2,
+          y: prev.y + dy * 0.2
+        };
+      });
+      rafId = requestAnimationFrame(animate);
+    };
+    if (serverBallPosition) animate();
+    return () => cancelAnimationFrame(rafId);
+  }, [serverBallPosition]);
+  
   // requestAnimationFrame 기반 공 위치 보간 useEffect 추가
   /*useEffect(() => {
     if (!serverBallPosition) return;
@@ -474,18 +527,10 @@ export default function GameBoard() {
   let BR_scaled = boardWidth / 16.92; // 406/16.92 ≈ 24, 기존 BR=12
   BR_scaled = BR_scaled * 1.5; // 퍽(공) 크기를 1.5배로 키움
 
-  // 내 골대만 로컬에서 즉시 줄이기(3,4번 누를 때)
+  // 골대 비율 계산: 서버 상태 + 로컬 즉시 효과
   let goalWidthRatioTop = state.goal_width_ratio?.top ?? 0.5;
   let goalWidthRatioBottom = state.goal_width_ratio?.bottom ?? 0.5;
-  if (localGoalSkill && side) {
-    const now = Date.now();
-    if (side === 'left' && localGoalSkill.id === 3 && now - localGoalSkill.ts < 5000) goalWidthRatioTop = 0.5 * 0.7;
-    if (side === 'left' && localGoalSkill.id === 4 && now - localGoalSkill.ts < 3000) goalWidthRatioTop = 0.5 * 0.5;
-    if (side === 'right' && localGoalSkill.id === 3 && now - localGoalSkill.ts < 5000) goalWidthRatioBottom = 0.5 * 0.7;
-    if (side === 'right' && localGoalSkill.id === 4 && now - localGoalSkill.ts < 3000) goalWidthRatioBottom = 0.5 * 0.5;
-    // 효과 끝나면 리셋
-    if ((localGoalSkill.id === 3 && now - localGoalSkill.ts >= 5000) || (localGoalSkill.id === 4 && now - localGoalSkill.ts >= 3000)) setLocalGoalSkill(null);
-  }
+  
 
   return (
     <div
@@ -688,7 +733,7 @@ export default function GameBoard() {
                 cooldown: 3.0,
                 name: id===1?"스킬 1":id===2?"스킬 2":id===3?"골대 축소 1":"골대 축소 2"
               };
-              const isActive = (mySkill?.active === skill.id) || (id >= 3 && localActiveSkill && localActiveSkill.id === id);
+              const isActive = (mySkill?.active === skill.id);
               const isSelected = selectedSkillId === skill.id;
               return (
                 <button
