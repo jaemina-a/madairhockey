@@ -1,5 +1,5 @@
 from threading import Lock
-from flask_socketio import emit, join_room
+from flask_socketio import emit, join_room, leave_room
 from flask import request
 from game_logic import Game
 from database import DB
@@ -10,6 +10,18 @@ games         = {}
 loading_games = {}
 participants  = {}
 bg_lock       = Lock()
+
+
+def serialize_loading_game(game):
+    return {
+        "left_username": getattr(game, "left_username", ""),
+        "right_username": getattr(game, "right_username", ""),
+        "left_ready": getattr(game, "left_ready", False),
+        "right_ready": getattr(game, "right_ready", False),
+        "left_user_skills": getattr(game, "left_user_skills", []),
+        "right_user_skills": getattr(game, "right_user_skills", []),
+        "COUNT": getattr(game, "COUNT", 0)
+    }
 
 def register_socket_handlers(socketio):
     @socketio.on("join_loading_ready_toggle")
@@ -28,30 +40,65 @@ def register_socket_handlers(socketio):
         if loading_games[room_name].left_ready and loading_games[room_name].right_ready:
             print(f"두 명이 모두 준비됨! {room_name} 방 게임 시작!")
             socketio.emit("game_start_ready", {"room_name": room_name}, room=room_name)
+    @socketio.on("leave_loading")
+    def leave_loading(data):
+        print("leave_loading in server", data)
+        room_name = data.get("room_name")
+        username = data.get("username")
+        side = data.get("side")
+        if(side == "left"):
+            loading_games[room_name].left_ready = False
+            loading_games[room_name].left_username = "waiting"
+            loading_games[room_name].left_user_skills = []
+        elif(side == "right"):
+            loading_games[room_name].right_ready = False
+            loading_games[room_name].right_username = "waiting"
+            loading_games[room_name].right_user_skills = []
+        if(loading_games[room_name].COUNT == 2):
+            DB.toggle_is_playing(room_name)
+        loading_games[room_name].COUNT -= 1
+        
+        DB.update_current_player(room_name, loading_games[room_name].COUNT)
+        print("leave_loading in server", room_name, username)
+        socketio.emit(
+            "loading_room_updated",  # 원하는 이벤트명
+            {
+                "room_name": room_name,
+                "loading_game": serialize_loading_game(loading_games[room_name])
+            },
+            room=room_name
+        )
+        emit("leave_loading_success", {"room_name": room_name, "side": side}, to=request.sid)
+        leave_room(room_name)
     @socketio.on("join_loading")
     def join_loading(data):
         room_name = data.get("room_name")
         username = data.get("username")
         sid = request.sid
-        if(loading_games[room_name].COUNT == 0):
-            left_username = username
-            loading_games[room_name].left_username = username
-            right_username = "waiting"
+        lg = loading_games[room_name]
+        mySide = None
+        if lg.left_username == "waiting":
+            mySide = "left"
+        elif lg.right_username == "waiting":
+            mySide = "right"
+        else:
+            # 방이 가득 참
+            emit("join_loading_fail", {"error": "방에 이미 2명이 있습니다."}, to=sid)
+            return
+        print("join_loading_success in server mySide : ", mySide)
+        if(mySide == "left"):
+            lg.left_username = username
             left_user_skills = DB.get_user_skills(username)
-            loading_games[room_name].left_user_skills = left_user_skills
-            right_user_skills = []
-            loading_games[room_name].right_ready = False
-            loading_games[room_name].left_ready = False
-            loading_games[room_name].COUNT += 1
+            lg.left_user_skills = left_user_skills
+            lg.left_ready = False
+            lg.COUNT += 1
             DB.update_current_player(room_name, loading_games[room_name].COUNT)
-        elif(loading_games[room_name].COUNT == 1):
-            left_username = loading_games[room_name].left_username
-            right_username = username
-            loading_games[room_name].right_username = username
-            left_user_skills = loading_games[room_name].left_user_skills
+        elif(mySide == "right"):
+            lg.right_username = username
             right_user_skills = DB.get_user_skills(username)
-            loading_games[room_name].right_user_skills = right_user_skills
-            loading_games[room_name].COUNT += 1
+            lg.right_user_skills = right_user_skills
+            lg.right_ready = False
+            lg.COUNT += 1
             DB.update_current_player(room_name, loading_games[room_name].COUNT)
         else:
             print("join_loading_failed in server", room_name, username)
@@ -68,18 +115,17 @@ def register_socket_handlers(socketio):
         a = DB.get_room_list()
         a_serialized = [serialize_room(room) for room in a]
         socketio.emit("room_updated", a_serialized)
-        side = "left" if loading_games[room_name].COUNT == 1 else "right"
-        print("join_loading_success in server", room_name, username, side)
+        # print("join_loading_success in server", room_name, username, side)
         join_room(room_name)
         emit_data = {
             "room_name": room_name,
-            "left_username": left_username,
-            "right_username": right_username,
-            "side": side,
-            "left_user_skills": left_user_skills,
-            "right_user_skills" :right_user_skills,
-            "left_ready" : loading_games[room_name].left_ready,
-            "right_ready" : loading_games[room_name].right_ready
+            "left_username": lg.left_username,
+            "right_username": lg.right_username,
+            "side": mySide,
+            "left_user_skills": lg.left_user_skills,
+            "right_user_skills" :lg.right_user_skills,
+            "left_ready" : lg.left_ready,
+            "right_ready" : lg.right_ready
             }
         emit("join_loading_success", emit_data, to = room_name)
 
@@ -181,6 +227,13 @@ def register_socket_handlers(socketio):
         DB.make_room(username, room_name)
         loading_games[room_name] = type('LoadingGame', (), {})()
         loading_games[room_name].COUNT = 0
+        loading_games[room_name].left_username = "waiting"
+        loading_games[room_name].right_username = "waiting"
+        loading_games[room_name].left_user_skills = []
+        loading_games[room_name].right_user_skills = []
+        loading_games[room_name].left_ready = False
+        loading_games[room_name].right_ready = False
+        
         print("loading_games[room_name]",loading_games[room_name].COUNT)
         a = DB.get_room_list()
         a_serialized = [serialize_room(room) for room in a]

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import socket from "../socket";
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 // 더미 데이터
 // const leftUser = {
@@ -19,6 +19,8 @@ export default function GameLoading() {
   const [searchParams] = useSearchParams();
   const username = searchParams.get('username') || 'player1';
   const roomName = searchParams.get('room_name') || 'default';
+  const [mySide, setMySide] = useState(null);
+  const mySideRef = useRef(null);
   const [count, setCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isReady_left, setIsReady_left] = useState(false);
@@ -27,7 +29,9 @@ export default function GameLoading() {
   const [leftUser, setLeftUser] = useState({name : "", skills : []});
   const [rightUser, setRightUser] = useState({name : "", skills : []});
   const navigate = useNavigate();
-  
+  useEffect(()=>{
+    mySideRef.current = mySide;
+  }, [mySide]);
   useEffect(()=>{
     socket.on('join_loading_fail', (error)=>{
       console.log(error.error);
@@ -45,8 +49,27 @@ export default function GameLoading() {
     });
     socket.on('join_loading_success', (data)=>{
       console.log(data);
-      setLeftUser({name : data.left_username, skills : data.left_user_skills});
-      setRightUser({name : data.right_username, skills : data.right_user_skills});
+      console.log("join_loading_success in client, myside: ", data.side);
+      if(mySideRef.current == null){
+        console.log("mySide is null, set mySide to : ", data.side);
+        setMySide(data.side);
+      }
+      setLeftUser({name : data.left_username || "waiting", skills : data.left_user_skills || []});
+      setRightUser({name : data.right_username || "waiting", skills : data.right_user_skills || [] });
+    });
+    socket.on('loading_room_updated', (data)=>{
+      console.log("loading_room_updated in client", data);
+      const game = data.loading_game;
+      setLeftUser({name : game.left_username, skills : game.left_user_skills});
+      setRightUser({name : game.right_username, skills : game.right_user_skills});
+    });
+    socket.on('leave_loading_success', (data)=>{
+      console.log("leave_loading_success in client", data);
+      console.log("mySide : ", mySideRef.current);
+      console.log("data.side : ", data.side);
+      if(data.side == mySideRef.current){
+        navigate(`/mypage?username=${encodeURIComponent(username)}`);
+      }
     });
     // 서버에서 게임 시작 신호 받기
     socket.on('game_start_ready', (data)=>{
@@ -54,6 +77,7 @@ export default function GameLoading() {
       setIsGameStartReady(true);
       // 2초 후 게임 시작
       setTimeout(() => {
+        console.log("게임 시작 버튼 클릭! room_name : ", roomName, "username : ", username);
         navigate(`/game?username=${encodeURIComponent(username)}&room_name=${encodeURIComponent(roomName)}`);
       }, 2000);
     });
@@ -242,6 +266,30 @@ export default function GameLoading() {
         disabled={!isGameStartReady}
       >
         {isGameStartReady ? '게임 시작!' : '준비 대기중...'}
+      </button>
+      <button
+        style={{
+          position: 'absolute',
+          right: '3vw',
+          bottom: '3vh',
+          background: '#ef4444',
+          color: '#fff',
+          fontWeight: 700,
+          fontSize: 18,
+          border: 'none',
+          borderRadius: 12,
+          padding: '0.6em 2em',
+          boxShadow: '0 2px 8px #ef444455',
+          letterSpacing: 1,
+          cursor: 'pointer',
+          opacity: 0.92,
+          zIndex: 10
+        }}
+        onClick={() => { 
+            socket.emit("leave_loading", {room_name: roomName, username: username, side: mySide});
+         }}
+      >
+        나가기
       </button>
     </div>
   );
