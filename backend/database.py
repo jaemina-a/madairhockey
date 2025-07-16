@@ -92,7 +92,10 @@ class Database:
             (1, "스킬 1", "⚡", 1.5, "#6366f1", "기본 속도 증가 스킬", "기본 제공", 3.0),
             (2, "스킬 2", "🔥", 2.0, "#f59e0b", "고속 공격 스킬", "기본 제공", 3.0),
             (3, "골대 축소 1", "🛡", 0, "#0ea5e9", "내 골대가 1/2로 5초간 줄어듭니다.", "기본 제공", 3.0),
-            (4, "골대 축소 2", "🧊", 0, "#1e293b", "내 골대가 1/4로 3초간 줄어듭니다.", "기본 제공", 3.0)
+            (4, "골대 축소 2", "🧊", 0, "#1e293b", "내 골대가 1/4로 3초간 줄어듭니다.", "기본 제공", 5.0),
+            (5, "먹물 1/4", "🎯", 0, "#64748b", "상대 중앙 1/4이 퍽 색으로 3초간 변함", "기본 제공", 3.0),
+            (6, "먹물 1/2", "🎯", 0, "#64748b", "상대 중앙 1/2이 퍽 색으로 3초간 변함", "기본 제공", 5.0),
+            
         ]
         
         cur.executemany("""
@@ -114,7 +117,7 @@ class Database:
                 pw_hash = generate_password_hash(password)
                 cur.execute("INSERT INTO users(username, pw_hash) VALUES (%s,%s)", (username, pw_hash))
                 user_id = cur.lastrowid
-                cur.execute("INSERT INTO user_skills(user_id, skill_id, unlocked) VALUES (%s, 1, TRUE), (%s, 2, TRUE), (%s, 3, TRUE), (%s, 4, TRUE)", (user_id, user_id, user_id, user_id))
+                cur.execute("INSERT INTO user_skills(user_id, skill_id, unlocked) VALUES (%s, 1, TRUE), (%s, 2, TRUE), (%s, 3, TRUE), (%s, 4, TRUE), (%s, 5, TRUE), (%s, 6, TRUE)", (user_id, user_id, user_id, user_id, user_id, user_id))
                 print(f"더미 유저 '{username}'을 생성하고 모든 스킬을 제공했습니다.")
         else:
             cur.execute("SELECT id FROM users")
@@ -122,7 +125,7 @@ class Database:
             for user in existing_users:
                 user_id = user[0]
                 cur.execute("DELETE FROM user_skills WHERE user_id = %s", (user_id,))
-                cur.execute("INSERT INTO user_skills(user_id, skill_id, unlocked) VALUES (%s, 1, TRUE), (%s, 2, TRUE), (%s, 3, TRUE), (%s, 4, TRUE)", (user_id, user_id, user_id, user_id))
+                cur.execute("INSERT INTO user_skills(user_id, skill_id, unlocked) VALUES (%s, 1, TRUE), (%s, 2, TRUE), (%s, 3, TRUE), (%s, 4, TRUE), (%s, 5, TRUE), (%s, 6, TRUE)", (user_id, user_id, user_id, user_id, user_id, user_id))
                 print(f"유저 ID {user_id}에게 모든 스킬을 제공했습니다.")
         conn.commit(); cur.close(); conn.close()
 
@@ -153,7 +156,7 @@ class Database:
         conn = self.pool.get_connection(); cur = conn.cursor()
         cur.execute("INSERT INTO users(username, pw_hash) VALUES (%s,%s)", (username, pw_hash))
         user_id = cur.lastrowid
-        cur.execute("INSERT INTO user_skills(user_id, skill_id, unlocked) VALUES (%s, 1, TRUE), (%s, 2, TRUE), (%s, 3, TRUE), (%s, 4, TRUE)", (user_id, user_id, user_id, user_id))
+        cur.execute("INSERT INTO user_skills(user_id, skill_id, unlocked) VALUES (%s, 1, TRUE), (%s, 2, TRUE), (%s, 3, TRUE), (%s, 4, TRUE), (%s, 5, TRUE), (%s, 6, TRUE)", (user_id, user_id, user_id, user_id, user_id, user_id))
         conn.commit(); cur.close(); conn.close()
     def toggle_is_playing(self, room_name):
         conn = self.pool.get_connection(); cur = conn.cursor()

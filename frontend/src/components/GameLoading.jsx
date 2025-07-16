@@ -15,6 +15,11 @@ import { useNavigate } from 'react-router-dom';
 //   skills: [1, 2, 3, 4],
 // };
 
+// 유틸: 6개를 2개씩 3줄로 나누는 함수
+function chunkSkills(skills) {
+  return [skills.slice(0,2), skills.slice(2,4), skills.slice(4,6)];
+}
+
 export default function GameLoading() {
   const [searchParams] = useSearchParams();
   const username = searchParams.get('username') || 'player1';
@@ -139,10 +144,14 @@ export default function GameLoading() {
         <div style={{ fontSize: 48, fontWeight: 900, color: '#fff', textShadow: '2px 2px 0 #000', marginBottom: 12 }}>ready</div>
         <div style={{ fontSize: 22, color: '#fff', textShadow: '1px 1px 0 #000', marginBottom: 8 }}>{leftUser.name}</div>
         {/* 스킬 아이콘 대신 네모 박스 */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
-          {leftUser.skills.map((s, i) => (
-            <div key={i} style={{ width: 54, height: 54, borderRadius: 8, background: '#ff9800', border: '3px solid #fff', boxShadow: '0 2px 8px #0003', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 24 }}>
-              
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+          {chunkSkills(leftUser.skills).map((row, rowIdx) => (
+            <div key={rowIdx} style={{ display: 'flex', flexDirection: 'row', gap: 8 }}>
+              {row.map((s, i) => (
+                <div key={i} style={{ width: 54, height: 54, borderRadius: 8, background: '#ff9800', border: '3px solid #fff', boxShadow: '0 2px 8px #0003', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 24 }}>
+                  {/* 아이콘/텍스트 등 필요시 여기에 */}
+                </div>
+              ))}
             </div>
           ))}
         </div>
@@ -191,9 +200,13 @@ export default function GameLoading() {
         <div style={{ fontSize: 48, fontWeight: 900, color: '#fff', textShadow: '2px 2px 0 #000', marginBottom: 12 }}>ready</div>
         <div style={{ fontSize: 22, color: '#fff', textShadow: '1px 1px 0 #000', marginBottom: 8 }}>{rightUser.name}</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
-          {rightUser.skills.map((s, i) => (
-            <div key={i} style={{ width: 54, height: 54, borderRadius: 8, background: '#ff9800', border: '3px solid #fff', boxShadow: '0 2px 8px #0003', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 24 }}>
-              
+          {chunkSkills(rightUser.skills).map((row, rowIdx) => (
+            <div key={rowIdx} style={{ display: 'flex', flexDirection: 'row', gap: 8 }}>
+              {row.map((s, i) => (
+                <div key={i} style={{ width: 54, height: 54, borderRadius: 8, background: '#ff9800', border: '3px solid #fff', boxShadow: '0 2px 8px #0003', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 24 }}>
+                  {/* 아이콘/텍스트 등 필요시 여기에 */}
+                </div>
+              ))}
             </div>
           ))}
         </div>

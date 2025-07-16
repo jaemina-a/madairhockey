@@ -4,7 +4,7 @@ import socket from "../socket";
 import fry_audio from "../assets/audio/audio_fry.mp3";
 import malletRedImg from '../assets/mallet_red.png';
 import puckImg from '../assets/puck.png';
-
+import inkEffect from '../assets/ink_effect.png';
 // 세로형 에어하키 보드 크기
 const W = 406, H = 700, PR = 25, BR = 12;
 
@@ -136,7 +136,7 @@ export default function GameBoard() {
 
       setSelectedSkillId(null);
       // 3,4번: 내가 발동한 경우에만 토글 켜짐
-      if (data.side === sideRef.current && (data.skill_id === 3 || data.skill_id === 4)) {
+      if (data.side === sideRef.current && [3, 4, 5, 6].includes(data.skill_id)) {
         setLocalActiveSkill({ id: data.skill_id, ts: Date.now() });
       }
       // 1,2번: 내가 발동한 경우에만 토글 꺼짐
@@ -259,7 +259,7 @@ export default function GameBoard() {
     const timeout = setTimeout(() => {
       setLocalActiveSkill(null);
       // 3,4번 스킬: 효과 끝난 후 쿨타임 시작
-      if (localActiveSkill.id === 3 || localActiveSkill.id === 4) {
+      if ([3, 4, 5, 6].includes(localActiveSkill.id)) {
         setSkillCooldowns(prev => ({ ...prev, [localActiveSkill.id]: Date.now() }));
       }
     }, duration);
@@ -271,14 +271,18 @@ export default function GameBoard() {
     1: 0, // 스킬1
     2: 0, // 스킬2
     3: 0, // 스킬3
-    4: 0  // 스킬4
+    4: 0, // 스킬4
+    5: 0, // 스킬5
+    6: 0  // 스킬6
   });
   // 쿨타임 상수 (ms)
   const SKILL_COOLDOWN = {
     1: 3000, // 3초
     2: 5000, // 5초
     3: 3000, // 3초
-    4: 5000  // 5초
+    4: 5000, // 5초
+    5: 3000, // 3초
+    6: 5000  // 5초
   };
   // 쿨타임 남은 시간(초)
   function getSkillCooldownLeft(skillId) {
@@ -299,7 +303,7 @@ export default function GameBoard() {
     // 쿨타임 체크
     if (getSkillCooldownLeft(skillId) > 0) return;
     // 쿨타임 기록은 스킬 효과가 끝난 뒤에만!
-    if (skillId === 3 || skillId === 4) {
+    if ([3, 4, 5, 6].includes(skillId)) {
       activateGoalSkill(skillId);
       return;
     }
@@ -317,7 +321,7 @@ export default function GameBoard() {
       if (!side) return;
       
       // 스킬 키 처리 - 토글 방식
-      if (e.key === "1" || e.key === "2" || e.key === "3" || e.key === "4") {
+      if (e.key === "1" || e.key === "2" || e.key === "3" || e.key === "4" || e.key === "5" || e.key === "6") {
         const skillId = parseInt(e.key);
         toggleSkill(skillId);
       }
@@ -329,7 +333,7 @@ export default function GameBoard() {
 
   // 선택된 스킬 정보를 서버에 전송
   useEffect(() => {
-    if (selectedSkillId === 3 || selectedSkillId === 4) return; // 3,4번은 위에서 즉시 처리
+    if (localActiveSkill && [3, 4, 5, 6].includes(localActiveSkill.id)) return; // 3,4번은 위에서 즉시 처리
     if (side && socketRef.current && selectedSkillId !== null) {
       socketRef.current.emit("set_selected_skill", { 
         room, 
@@ -533,7 +537,7 @@ export default function GameBoard() {
   if (!gameReady) {
     return <p style={{textAlign:'center',marginTop:'3em',fontSize:'1.2em'}}>상대방을 기다리는 중…</p>;
   }
-  const { ball, paddles, scores, skills } = state;
+  const { ball, paddles, scores, skills, blind_effect } = state;
 
   // 로컬 패들 위치와 서버 패들 위치 병합
   const displayPaddles = {
@@ -573,6 +577,10 @@ export default function GameBoard() {
   let goalWidthRatioBottom = state.goal_width_ratio?.bottom ?? 0.5;
   
 
+  // 하키판 내부에서 blind_effect 렌더링 (상대방이 쓴 효과만 내 화면에 보이게)
+  const opponentSide = side === "left" ? "top" : side === "right" ? "bottom" : null;
+
+
   return (
     <div
       style={{
@@ -611,6 +619,41 @@ export default function GameBoard() {
           cursor: side ? 'crosshair' : 'default',
         }}
       >
+        {/* Blind effect overlay (먹물/위장) */}
+        {blind_effect && opponentSide && blind_effect[opponentSide] && (
+          blind_effect[opponentSide].shape === "circle" ? (
+            <img
+              src={inkEffect}
+              alt="blind effect"
+              style={{
+                position: 'absolute',
+                left: boardWidth / 2 - 150,
+                top: boardHeight / 2 - 200,
+                width: 300,
+                height: 400,
+                opacity: 1,
+                zIndex: 5,
+                pointerEvents: 'none',5
+              }}
+            />
+
+          ) : (
+            <img
+              src={inkEffect}
+              alt="blind effect"
+              style={{
+                position: 'absolute',
+                left: boardWidth / 2 - 250,
+                top: boardHeight / 2 - 250,
+                width: 500,
+                height: 500,
+                opacity: 1,
+                zIndex: 5,
+                pointerEvents: 'none',
+              }}
+            />
+          )
+        )}
         {/* 상단 골대 표시 (top) */}
         <div style={{
           position: 'absolute',
@@ -758,12 +801,12 @@ export default function GameBoard() {
           <div style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: '2em',
+            gap: '1em',
             marginBottom: '1em',
             flexWrap: 'wrap',
             justifyContent: 'flex-start',
           }}>
-            {/* 위쪽: 가속 스킬 1,2 (노란색 디자인 완전 통일) */}
+            {/* 1,2번 스킬 (첫 번째 줄) */}
             <div style={{ display: 'flex', gap: '0.8em', justifyContent: 'center' }}>
               {[1,2].map(id => {
                 // 1번과 2번 모두 노란색(#f59e0b) 디자인(활성화/비활성화/선택 모두)
@@ -851,21 +894,21 @@ export default function GameBoard() {
                 );
               })}
             </div>
-            {/* 아래쪽: 골대 스킬 3,4 (쿨타임 디자인/스타일 통일) */}
+            {/* 3,4번 스킬 (두 번째 줄) */}
             <div style={{ display: 'flex', gap: '0.8em', justifyContent: 'center' }}>
               {[3,4].map(id => {
-                // 3번과 4번 모두 동일한 색상/디자인(3번 기준)
+                // 3,4,5,6번 모두 동일한 색상/디자인(3번 기준)
                 const baseColor = '#0ea5e9';
                 const skill = myAvailableSkills.find(s => s.id === id) || {
                   id,
-                  icon: id===3?"🛡️":"🧊",
+                  icon: id === 3 ? "🛡️" : "🧊",
                   color: baseColor,
-                  cooldown: id===3?3.0:5.0,
-                  name: id===3?"골대 축소 1":"골대 축소 2"
+                  cooldown: id === 3 ? 3 : 5,
+                  name: id === 3 ? "골대 축소 1" : "골대 축소 2"
                 };
                 const isActive = (mySkill?.active === skill.id) || (localActiveSkill && localActiveSkill.id === id);
                 const isSelected = localActiveSkill && localActiveSkill.id === skill.id;
-                // 골대 스킬 표시 텍스트
+                // 골대/블라인드 스킬 표시 텍스트
                 const ratioText = id === 3 ? '1/2' : '1/4';
                 const cooldownLeft = getSkillCooldownLeft(skill.id);
                 // 쿨타임 중이면 연한 회색 배경
@@ -913,7 +956,103 @@ export default function GameBoard() {
                     {isCooldown ? (
                       <div style={{ color: '#222', fontWeight: 700, fontSize: '0.9em' }}>{cooldownLeft}s</div>
                     ) : (
-                      <div style={{ fontSize: '0.7em', color: '#666', marginTop: '0.1em' }}>{id === 3 ? '3s' : '5s'}</div>
+                      <div style={{ fontSize: '0.7em', color: '#666', marginTop: '0.1em' }}>{skill.cooldown}s</div>
+                    )}
+                    {isActive && (
+                      <div style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        background: `${baseColor}44`,
+                        animation: 'shimmer 1.5s infinite',
+                        borderRadius: 6,
+                        imageRendering: 'pixelated',
+                      }} />
+                    )}
+                    {isSelected && !isActive && (
+                      <div style={{
+                        position: 'absolute',
+                        top: 4,
+                        right: 8,
+                        fontSize: '0.7em',
+                        color: baseColor,
+                        fontWeight: 700,
+                        background: '#fff',
+                        padding: '2px 6px',
+                        borderRadius: 4,
+                        border: `1px solid ${baseColor}`,
+                        fontFamily: 'monospace',
+                        imageRendering: 'pixelated',
+                      }}>
+                        활성화됨
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            {/* 5,6번 스킬 (세 번째 줄) */}
+            <div style={{ display: 'flex', gap: '0.8em', justifyContent: 'center' }}>
+              {[5,6].map(id => {
+                const baseColor = '#0ea5e9';
+                const skill = myAvailableSkills.find(s => s.id === id) || {
+                  id,
+                  icon: id === 5 ? "👁️" : "🕳️",
+                  color: baseColor,
+                  cooldown: id === 5 ? 3 : 5,
+                  name: id === 5 ? "눈가림 1" : "눈가림 2"
+                };
+                const isActive = (mySkill?.active === skill.id) || (localActiveSkill && localActiveSkill.id === id);
+                const isSelected = localActiveSkill && localActiveSkill.id === skill.id;
+                const ratioText = id === 5 ? '●' : '■';
+                const cooldownLeft = getSkillCooldownLeft(skill.id);
+                const isCooldown = cooldownLeft > 0;
+                return (
+                  <button
+                    key={skill.id}
+                    disabled={isCooldown}
+                    style={{
+                      padding: '0.7em 1.1em',
+                      fontSize: '1em',
+                      fontWeight: 600,
+                      borderRadius: 6,
+                      background: isCooldown
+                        ? 'rgba(120,120,120,0.13)'
+                        : isActive
+                        ? baseColor
+                        : isSelected
+                        ? `${baseColor}88`
+                        : `#e0e7ef`,
+                      color: isActive ? '#fff' : baseColor,
+                      cursor: 'pointer',
+                      boxShadow: isActive 
+                        ? `0 2px 8px ${baseColor}55, 0 0 8px #1e293b` 
+                        : isSelected
+                        ? `0 2px 8px ${baseColor}33`
+                        : `0 2px 8px #1e293b22`,
+                      transition: 'all 0.2s',
+                      outline: 'none',
+                      minWidth: 70,
+                      border: isActive 
+                        ? `2px solid #fff` 
+                        : isSelected 
+                        ? `2px solid ${baseColor}` 
+                        : `2px solid #1e293b`,
+                      position: 'relative',
+                      overflow: 'hidden',
+                      fontFamily: 'monospace',
+                      imageRendering: 'pixelated',
+                    }}
+                    onClick={() => toggleSkill(skill.id)}
+                  >
+                    <div style={{ fontSize: '1.2em', marginBottom: '0.2em', fontWeight: 700 }}>{skill.icon}</div>
+                    <div style={{ fontSize: '0.8em', fontWeight: 700 }}>{ratioText}</div>
+                    {isCooldown ? (
+                      <div style={{ color: '#222', fontWeight: 700, fontSize: '0.9em' }}>{cooldownLeft}s</div>
+                    ) : (
+                      <div style={{ fontSize: '0.7em', color: '#666', marginTop: '0.1em' }}>{skill.cooldown}s</div>
                     )}
                     {isActive && (
                       <div style={{
@@ -962,9 +1101,10 @@ export default function GameBoard() {
           boxShadow: '0 2px 8px #6366f122',
           marginBottom: 8,
         }}>
-          <div>- 마우스를 움직여 패들 조작</div>
-          <div>- 1,2: 가속 스킬 발동</div>
-          <div>- 3,4: 방어 스킬 발동</div>
+          <div> 마우스를 움직여 패들 조작</div>
+          <div> 1,2: 가속 스킬 발동</div>
+          <div> 3,4: 방어 스킬 발동</div>
+          <div> 5,6: 먹물 스킬 발동</div>
         </div>
       </div>
 
@@ -1027,7 +1167,6 @@ export default function GameBoard() {
           100% { opacity: 0; transform: scale(0.3); }
         }
       `}</style>
-
     </div>
   );
 }
